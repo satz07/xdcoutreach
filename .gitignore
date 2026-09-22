@@ -1,0 +1,11 @@
+node_modules/
+client/node_modules/
+client/dist/
+.env
+.env.local
+.DS_Store
+*.log
+.specstory/
+.cursorindexingignore
+.vercel
+.railway

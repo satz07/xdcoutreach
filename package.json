@@ -1,0 +1,25 @@
+{
+  "name": "email-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Event email campaign sender for XDC Network & Contour",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "node server/src/index.js",
+    "client": "npm run dev --prefix client",
+    "install:all": "npm install && npm install --prefix client",
+    "db:init": "node server/src/db/migrate.js",
+    "build": "npm run build --prefix client",
+    "start": "NODE_ENV=production node server/src/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "nodemailer": "^6.9.16",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
