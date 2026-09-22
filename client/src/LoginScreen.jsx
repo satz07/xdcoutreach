@@ -1,23 +1,46 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, logoUrl, setSession } from './api';
 
-export default function LoginScreen({ onAuthenticated }) {
-  const [step, setStep] = useState('email');
+export default function LoginScreen({ onAuthenticated, inviteToken }) {
+  const [mode, setMode] = useState(inviteToken ? 'invite' : 'login');
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  async function requestOtp(e) {
-    e?.preventDefault?.();
+  useEffect(() => {
+    if (!inviteToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api.getInvite(inviteToken);
+        if (!cancelled) {
+          setInviteEmail(data.email);
+          setMode('invite');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message);
+          setMode('login');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteToken]);
+
+  async function handleLogin(e) {
+    e.preventDefault();
     setBusy(true);
     setError('');
-    setNotice('');
     try {
-      const res = await api.requestOtp(email.trim());
-      setNotice(res.message || 'OTP sent to your email');
-      setStep('otp');
+      const res = await api.login(email.trim(), password);
+      setSession(res.token, res.user);
+      onAuthenticated(res.user, res.quota);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -25,14 +48,27 @@ export default function LoginScreen({ onAuthenticated }) {
     }
   }
 
-  async function verifyOtp(e) {
+  async function handleSetPassword(e) {
     e.preventDefault();
     setBusy(true);
     setError('');
+    setNotice('');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      setBusy(false);
+      return;
+    }
+    if (password !== confirm) {
+      setError('Passwords do not match');
+      setBusy(false);
+      return;
+    }
     try {
-      const res = await api.verifyOtp(email.trim(), otp.trim());
+      const res = await api.setPassword(inviteToken, password);
       setSession(res.token, res.user);
-      onAuthenticated(res.user);
+      setNotice('Password set — you are signed in.');
+      onAuthenticated(res.user, res.quota);
+      window.history.replaceState({}, '', window.location.pathname);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -48,16 +84,49 @@ export default function LoginScreen({ onAuthenticated }) {
           <img src={logoUrl('contour.png')} alt="Contour" className="brand-contour" />
         </div>
         <p className="eyebrow">XDC Outreach</p>
-        <h1>Sign in</h1>
+        <h1>{mode === 'invite' ? 'Set your password' : 'Sign in'}</h1>
         <p className="auth-sub">
-          Enter your invited email. We&apos;ll send a one-time code — no password.
+          {mode === 'invite'
+            ? 'Activate your invited admin account to start using the platform.'
+            : 'Only invited emails can access. Sign in with your email and password.'}
         </p>
 
         {error && <div className="banner error">{error}</div>}
         {notice && <div className="banner ok">{notice}</div>}
 
-        {step === 'email' ? (
-          <form onSubmit={requestOtp} className="auth-form">
+        {mode === 'invite' ? (
+          <form onSubmit={handleSetPassword} className="auth-form">
+            <p className="auth-email-line">
+              Account: <strong>{inviteEmail || '…'}</strong>
+            </p>
+            <label>
+              New password
+              <input
+                type="password"
+                required
+                minLength={8}
+                autoFocus
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+              />
+            </label>
+            <label>
+              Confirm password
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
+            </label>
+            <button type="submit" className="primary" disabled={busy || !inviteEmail}>
+              {busy ? 'Saving…' : 'Activate & continue'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleLogin} className="auth-form">
             <label>
               Work email
               <input
@@ -69,47 +138,17 @@ export default function LoginScreen({ onAuthenticated }) {
                 placeholder="you@company.com"
               />
             </label>
-            <button type="submit" className="primary" disabled={busy}>
-              {busy ? 'Sending…' : 'Send OTP'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={verifyOtp} className="auth-form">
-            <p className="auth-email-line">
-              Code sent to <strong>{email}</strong>
-            </p>
             <label>
-              6-digit OTP
+              Password
               <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
+                type="password"
                 required
-                autoFocus
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </label>
-            <button type="submit" className="primary" disabled={busy || otp.length !== 6}>
-              {busy ? 'Verifying…' : 'Verify & continue'}
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              disabled={busy}
-              onClick={() => {
-                setStep('email');
-                setOtp('');
-                setError('');
-                setNotice('');
-              }}
-            >
-              Use a different email
-            </button>
-            <button type="button" className="ghost" disabled={busy} onClick={() => requestOtp()}>
-              Resend code
+            <button type="submit" className="primary" disabled={busy}>
+              {busy ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
         )}

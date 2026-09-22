@@ -3,144 +3,142 @@ const { pool } = require('../db/pool');
 const { sendOneEmail } = require('../services/mailer');
 const {
   SUPERADMIN_EMAIL,
+  INVITE_TTL_DAYS,
   signToken,
   requireAuth,
   requireSuperAdmin,
   normalizeEmail,
   isValidEmail,
-  generateOtp,
+  generateInviteToken,
+  hashPassword,
+  verifyPassword,
+  publicUser,
+  countEmailsSent,
+  getRemainingQuota,
+  frontendUrl,
 } = require('../middleware/auth');
 
 const router = express.Router();
-
-const OTP_TTL_MINUTES = Number(process.env.OTP_TTL_MINUTES || 10);
 const APP_NAME = 'XDC Outreach';
 
-function otpEmailHtml(code, purpose) {
-  return `<!DOCTYPE html>
-<html><body style="font-family:Arial,Helvetica,sans-serif;background:#F4F7FB;padding:24px;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #D5E0EE;border-radius:12px;">
-    <tr><td style="padding:28px 28px 8px;background:#15294C;color:#fff;border-radius:12px 12px 0 0;">
-      <p style="margin:0;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#8EB4E0;">${APP_NAME}</p>
-      <h1 style="margin:8px 0 0;font-size:22px;">Verification code</h1>
-    </td></tr>
-    <tr><td style="padding:24px 28px;color:#243447;font-size:15px;line-height:1.6;">
-      <p style="margin:0 0 12px;">${purpose}</p>
-      <p style="margin:0 0 8px;font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:#254C82;font-weight:700;">Your OTP</p>
-      <p style="margin:0;font-size:32px;letter-spacing:8px;font-weight:700;color:#15294C;">${code}</p>
-      <p style="margin:18px 0 0;font-size:13px;color:#6B7C8F;">This code expires in ${OTP_TTL_MINUTES} minutes. If you did not request it, ignore this email.</p>
-    </td></tr>
-  </table>
-</body></html>`;
+function parseLimit(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+    return { error: 'email_send_limit must be a non-negative integer (or empty for unlimited)' };
+  }
+  return { value: n };
 }
 
-async function ensureUserCanLogin(email) {
-  const { rows } = await pool.query(`SELECT * FROM users WHERE email = $1`, [email]);
-  let user = rows[0];
-
-  if (!user && email === SUPERADMIN_EMAIL) {
-    const inserted = await pool.query(
-      `INSERT INTO users (email, role, active)
-       VALUES ($1, 'superadmin', TRUE)
-       ON CONFLICT (email) DO UPDATE SET role = 'superadmin', active = TRUE
-       RETURNING *`,
-      [email]
-    );
-    user = inserted.rows[0];
-  }
-
-  if (!user) {
-    return { ok: false, error: 'This email is not authorized. Ask the superadmin to invite you.' };
-  }
-  if (user.active === false) {
-    return { ok: false, error: 'This account is inactive.' };
-  }
-  return { ok: true, user };
-}
-
-/** POST /auth/request-otp { email } */
-router.post('/request-otp', async (req, res) => {
+/** POST /auth/login { email, password } */
+router.post('/login', async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email);
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ error: 'Valid email is required' });
+    const password = String(req.body.password || '');
+
+    if (!isValidEmail(email) || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const gate = await ensureUserCanLogin(email);
-    if (!gate.ok) return res.status(403).json({ error: gate.error });
+    const { rows } = await pool.query(`SELECT * FROM users WHERE email = $1`, [email]);
+    const user = rows[0];
 
-    const code = generateOtp();
-    const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
+    if (!user || user.active === false) {
+      return res.status(403).json({
+        error: 'This email is not authorized. Ask the superadmin to invite you.',
+      });
+    }
 
-    await pool.query(`UPDATE login_otps SET used = TRUE WHERE email = $1 AND used = FALSE`, [email]);
-    await pool.query(
-      `INSERT INTO login_otps (email, code, expires_at) VALUES ($1, $2, $3)`,
-      [email, code, expiresAt]
-    );
+    if (!user.password_hash) {
+      return res.status(403).json({
+        error: 'Account not activated yet. Open your invite link to set a password first.',
+      });
+    }
 
-    await sendOneEmail({
-      to: email,
-      subject: `${APP_NAME} login code: ${code}`,
-      html: otpEmailHtml(code, 'Use this one-time code to sign in to XDC Outreach.'),
-      text: `Your ${APP_NAME} login code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`,
-      includeLogos: false,
-      fromName: APP_NAME,
-    });
+    const ok = await verifyPassword(password, user.password_hash);
+    if (!ok) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    await pool.query(`UPDATE users SET last_login_at = NOW() WHERE id = $1`, [user.id]);
+    const emailsSent = await countEmailsSent(user.id);
+    const quota = await getRemainingQuota({ ...user, emails_sent: emailsSent });
 
     res.json({
       ok: true,
-      message: 'OTP sent to your email',
-      email,
-      expiresInMinutes: OTP_TTL_MINUTES,
+      token: signToken(user),
+      user: publicUser(user, { emails_sent: emailsSent }),
+      quota,
     });
   } catch (err) {
-    console.error('request-otp error:', err);
-    const msg = err.message || 'Failed to send OTP';
-    const friendly =
-      /timeout|ETIMEDOUT|ESOCKET|connect/i.test(msg)
-        ? 'Could not reach the email server. Please try again in a moment.'
-        : msg;
-    res.status(500).json({ error: friendly });
+    res.status(500).json({ error: err.message });
   }
 });
 
-/** POST /auth/verify-otp { email, code } */
-router.post('/verify-otp', async (req, res) => {
+/** GET /auth/invite/:token — public, validate invite before set-password */
+router.get('/invite/:token', async (req, res) => {
   try {
-    const email = normalizeEmail(req.body.email);
-    const code = String(req.body.code || '').trim();
-
-    if (!isValidEmail(email) || !/^\d{6}$/.test(code)) {
-      return res.status(400).json({ error: 'Email and 6-digit OTP are required' });
-    }
-
-    const gate = await ensureUserCanLogin(email);
-    if (!gate.ok) return res.status(403).json({ error: gate.error });
-
+    const token = String(req.params.token || '').trim();
     const { rows } = await pool.query(
-      `SELECT * FROM login_otps
-       WHERE email = $1 AND code = $2 AND used = FALSE AND expires_at > NOW()
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [email, code]
+      `SELECT id, email, role, active, invite_token_expires_at, password_hash
+       FROM users
+       WHERE invite_token = $1`,
+      [token]
     );
+    const user = rows[0];
+    if (!user || !user.active) {
+      return res.status(404).json({ error: 'Invite not found or revoked' });
+    }
+    if (user.password_hash) {
+      return res.status(410).json({ error: 'Invite already used. Please sign in with your password.' });
+    }
+    if (user.invite_token_expires_at && new Date(user.invite_token_expires_at) < new Date()) {
+      return res.status(410).json({ error: 'Invite has expired. Ask the superadmin to re-invite you.' });
+    }
+    res.json({ ok: true, email: user.email });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    if (!rows[0]) {
-      return res.status(401).json({ error: 'Invalid or expired OTP' });
+/** POST /auth/set-password { token, password } */
+router.post('/set-password', async (req, res) => {
+  try {
+    const token = String(req.body.token || '').trim();
+    const password = String(req.body.password || '');
+
+    if (!token || password.length < 8) {
+      return res.status(400).json({ error: 'Invite token and a password of at least 8 characters are required' });
     }
 
-    await pool.query(`UPDATE login_otps SET used = TRUE WHERE id = $1`, [rows[0].id]);
-    await pool.query(`UPDATE users SET last_login_at = NOW() WHERE id = $1`, [gate.user.id]);
+    const { rows } = await pool.query(`SELECT * FROM users WHERE invite_token = $1`, [token]);
+    const user = rows[0];
+    if (!user || !user.active) {
+      return res.status(404).json({ error: 'Invite not found or revoked' });
+    }
+    if (user.invite_token_expires_at && new Date(user.invite_token_expires_at) < new Date()) {
+      return res.status(410).json({ error: 'Invite has expired. Ask the superadmin to re-invite you.' });
+    }
 
-    const token = signToken(gate.user);
+    const passwordHash = await hashPassword(password);
+    const updated = await pool.query(
+      `UPDATE users
+       SET password_hash = $1,
+           invite_token = NULL,
+           invite_token_expires_at = NULL,
+           last_login_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [passwordHash, user.id]
+    );
+    const u = updated.rows[0];
+    const emailsSent = await countEmailsSent(u.id);
+
     res.json({
       ok: true,
-      token,
-      user: {
-        id: gate.user.id,
-        email: gate.user.email,
-        role: gate.user.role,
-      },
+      token: signToken(u),
+      user: publicUser(u, { emails_sent: emailsSent }),
+      quota: await getRemainingQuota(u),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -148,25 +146,36 @@ router.post('/verify-otp', async (req, res) => {
 });
 
 /** GET /auth/me */
-router.get('/me', requireAuth, (req, res) => {
-  res.json({
-    user: {
-      id: req.user.id,
-      email: req.user.email,
-      role: req.user.role,
-    },
-  });
+router.get('/me', requireAuth, async (req, res) => {
+  try {
+    const emailsSent = await countEmailsSent(req.user.id);
+    const quota = await getRemainingQuota({ ...req.user, emails_sent: emailsSent });
+    res.json({
+      user: publicUser(req.user, { emails_sent: emailsSent }),
+      quota,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /** GET /auth/users — superadmin only */
 router.get('/users', requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, email, role, active, invited_by, created_at, last_login_at
-       FROM users
+      `SELECT
+         u.id, u.email, u.role, u.active, u.invited_by, u.created_at, u.last_login_at,
+         u.email_send_limit,
+         (u.password_hash IS NOT NULL) AS has_password,
+         (u.invite_token IS NOT NULL) AS pending_invite,
+         COALESCE((
+           SELECT COUNT(*)::int FROM email_sends s
+           WHERE s.sent_by_user_id = u.id AND s.status = 'sent'
+         ), 0) AS emails_sent
+       FROM users u
        ORDER BY
-         CASE role WHEN 'superadmin' THEN 0 ELSE 1 END,
-         created_at ASC`
+         CASE u.role WHEN 'superadmin' THEN 0 ELSE 1 END,
+         u.created_at ASC`
     );
     res.json({ users: rows });
   } catch (err) {
@@ -174,7 +183,10 @@ router.get('/users', requireAuth, requireSuperAdmin, async (_req, res) => {
   }
 });
 
-/** POST /auth/invite { email } — superadmin only */
+/**
+ * POST /auth/invite { email, email_send_limit? }
+ * Superadmin only. Creates/reactivates admin and returns invite link.
+ */
 router.post('/invite', requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email);
@@ -185,31 +197,105 @@ router.post('/invite', requireAuth, requireSuperAdmin, async (req, res) => {
       return res.status(400).json({ error: 'That email is already the superadmin' });
     }
 
-    const existing = await pool.query(`SELECT id, email, role, active FROM users WHERE email = $1`, [
-      email,
-    ]);
+    const limitParsed = parseLimit(req.body.email_send_limit);
+    if (limitParsed.error) return res.status(400).json({ error: limitParsed.error });
+    const emailSendLimit = limitParsed.value ?? null;
+
+    const inviteToken = generateInviteToken();
+    const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
+    const inviteLink = `${frontendUrl()}/?invite=${inviteToken}`;
+
+    const existing = await pool.query(`SELECT * FROM users WHERE email = $1`, [email]);
+    let user;
+
     if (existing.rows[0]) {
-      if (existing.rows[0].active) {
-        return res.status(409).json({ error: 'User already invited', user: existing.rows[0] });
+      if (existing.rows[0].role === 'superadmin') {
+        return res.status(400).json({ error: 'Cannot invite superadmin' });
       }
-      const revived = await pool.query(
-        `UPDATE users SET active = TRUE, role = 'admin', invited_by = $2 WHERE id = $1
-         RETURNING id, email, role, active, invited_by, created_at`,
-        [existing.rows[0].id, req.user.email]
+      const updated = await pool.query(
+        `UPDATE users SET
+           active = TRUE,
+           role = 'admin',
+           invited_by = $2,
+           email_send_limit = $3,
+           password_hash = NULL,
+           invite_token = $4,
+           invite_token_expires_at = $5
+         WHERE id = $1
+         RETURNING id, email, role, active, invited_by, email_send_limit, created_at`,
+        [existing.rows[0].id, req.user.email, emailSendLimit, inviteToken, expiresAt]
       );
-      await sendInviteEmail(email, req.user.email);
-      return res.json({ ok: true, user: revived.rows[0], reactivated: true });
+      user = updated.rows[0];
+    } else {
+      const inserted = await pool.query(
+        `INSERT INTO users
+           (email, role, active, invited_by, email_send_limit, invite_token, invite_token_expires_at)
+         VALUES ($1, 'admin', TRUE, $2, $3, $4, $5)
+         RETURNING id, email, role, active, invited_by, email_send_limit, created_at`,
+        [email, req.user.email, emailSendLimit, inviteToken, expiresAt]
+      );
+      user = inserted.rows[0];
     }
 
-    const { rows } = await pool.query(
-      `INSERT INTO users (email, role, active, invited_by)
-       VALUES ($1, 'admin', TRUE, $2)
-       RETURNING id, email, role, active, invited_by, created_at`,
-      [email, req.user.email]
+    let emailSent = false;
+    let emailError = null;
+    try {
+      await sendInviteEmail(email, req.user.email, inviteLink);
+      emailSent = true;
+    } catch (err) {
+      console.error('invite email failed:', err.message);
+      emailError = err.message;
+    }
+
+    res.status(existing.rows[0] ? 200 : 201).json({
+      ok: true,
+      user,
+      inviteLink,
+      emailSent,
+      emailError,
+      message: emailSent
+        ? `Invite sent to ${email}`
+        : `Invite created. Email could not be sent — share this link with them: ${inviteLink}`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** PATCH /auth/users/:id { email_send_limit?, active? } — superadmin */
+router.patch('/users/:id', requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT * FROM users WHERE id = $1`, [req.params.id]);
+    const user = rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.role === 'superadmin') {
+      return res.status(400).json({ error: 'Cannot edit superadmin this way' });
+    }
+
+    let emailSendLimit = user.email_send_limit;
+    if ('email_send_limit' in req.body) {
+      const parsed = parseLimit(req.body.email_send_limit);
+      if (parsed.error) return res.status(400).json({ error: parsed.error });
+      emailSendLimit = parsed.value ?? null;
+    }
+
+    let active = user.active;
+    if (typeof req.body.active === 'boolean') {
+      active = req.body.active;
+    }
+
+    const updated = await pool.query(
+      `UPDATE users SET email_send_limit = $2, active = $3
+       WHERE id = $1
+       RETURNING id, email, role, active, invited_by, email_send_limit, created_at, last_login_at`,
+      [user.id, emailSendLimit, active]
     );
 
-    await sendInviteEmail(email, req.user.email);
-    res.status(201).json({ ok: true, user: rows[0] });
+    const emailsSent = await countEmailsSent(user.id);
+    res.json({
+      ok: true,
+      user: { ...updated.rows[0], emails_sent: emailsSent, has_password: Boolean(user.password_hash) },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -225,8 +311,8 @@ router.post('/users/:id/deactivate', requireAuth, requireSuperAdmin, async (req,
       return res.status(400).json({ error: 'Cannot deactivate superadmin' });
     }
     const updated = await pool.query(
-      `UPDATE users SET active = FALSE WHERE id = $1
-       RETURNING id, email, role, active`,
+      `UPDATE users SET active = FALSE, invite_token = NULL WHERE id = $1
+       RETURNING id, email, role, active, email_send_limit`,
       [user.id]
     );
     res.json({ ok: true, user: updated.rows[0] });
@@ -235,8 +321,7 @@ router.post('/users/:id/deactivate', requireAuth, requireSuperAdmin, async (req,
   }
 });
 
-async function sendInviteEmail(to, invitedBy) {
-  const appUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://xdcoutreach.vercel.app';
+async function sendInviteEmail(to, invitedBy, inviteLink) {
   const html = `<!DOCTYPE html>
 <html><body style="font-family:Arial,Helvetica,sans-serif;background:#F4F7FB;padding:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #D5E0EE;border-radius:12px;">
@@ -245,18 +330,19 @@ async function sendInviteEmail(to, invitedBy) {
     </td></tr>
     <tr><td style="padding:24px 28px;color:#243447;font-size:15px;line-height:1.65;">
       <p style="margin:0 0 14px;">${invitedBy} invited you as an <strong>admin</strong> on XDC Outreach.</p>
-      <p style="margin:0 0 14px;">You can compose and send event emails. Only the superadmin can invite new people.</p>
-      <p style="margin:0 0 18px;">Sign in with your email — you'll receive a one-time OTP code.</p>
-      <a href="${appUrl}" style="display:inline-block;padding:12px 22px;background:#254C82;color:#fff;text-decoration:none;border-radius:6px;font-weight:700;">Open XDC Outreach</a>
+      <p style="margin:0 0 14px;">Set your password using the button below, then sign in to compose and send event emails.</p>
+      <p style="margin:0 0 18px;">Only invited emails can access the platform.</p>
+      <a href="${inviteLink}" style="display:inline-block;padding:12px 22px;background:#254C82;color:#fff;text-decoration:none;border-radius:6px;font-weight:700;">Set password &amp; activate</a>
+      <p style="margin:18px 0 0;font-size:12px;color:#6B7C8F;word-break:break-all;">Or open: ${inviteLink}</p>
     </td></tr>
   </table>
 </body></html>`;
 
   await sendOneEmail({
     to,
-    subject: 'You are invited to XDC Outreach (admin)',
+    subject: 'Activate your XDC Outreach admin account',
     html,
-    text: `${invitedBy} invited you to XDC Outreach as an admin. Sign in at ${appUrl} with your email + OTP.`,
+    text: `${invitedBy} invited you to XDC Outreach. Set your password: ${inviteLink}`,
     includeLogos: false,
     fromName: APP_NAME,
   });

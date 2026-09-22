@@ -599,6 +599,31 @@ th {
   align-self: center;
 }
 
+.limit-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.limit-input {
+  width: 88px;
+  padding: 6px 8px;
+}
+
+.invite-link-box code {
+  display: block;
+  margin: 8px 0;
+  word-break: break-all;
+  font-size: 12px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 @media (max-width: 960px) {
   .layout,
   .events {

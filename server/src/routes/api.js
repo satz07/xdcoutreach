@@ -2,7 +2,7 @@ const express = require('express');
 const { pool } = require('../db/pool');
 const { sendOneEmail, parseRecipients } = require('../services/mailer');
 const { buildSibosEmailHtml } = require('../templates/sibosEmail');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, getRemainingQuota } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -162,6 +162,14 @@ router.post('/send', async (req, res) => {
       });
     }
 
+    const quota = await getRemainingQuota(req.user);
+    if (quota.limited && valid.length > quota.remaining) {
+      return res.status(403).json({
+        error: `Send limit exceeded. You can send ${quota.remaining} more email(s) (limit ${quota.limit}, used ${quota.used}). Ask the superadmin to raise your limit.`,
+        quota,
+      });
+    }
+
     let subjectFinal = subject;
     let htmlFinal = html_body;
     let textFinal = text_body;
@@ -183,14 +191,16 @@ router.post('/send', async (req, res) => {
       return res.status(400).json({ error: 'subject and html_body (or template_id) are required' });
     }
 
+    const senderId = req.user.id;
+
     await client.query('BEGIN');
 
     const campaign = await client.query(
       `INSERT INTO email_campaigns
-        (event_id, template_id, subject, html_body, recipients_raw, total_recipients, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'sending')
+        (event_id, template_id, subject, html_body, recipients_raw, total_recipients, status, sent_by_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, 'sending', $7)
        RETURNING *`,
-      [eventId, templateId, subjectFinal, htmlFinal, recipients, valid.length]
+      [eventId, templateId, subjectFinal, htmlFinal, recipients, valid.length, senderId]
     );
     const campaignId = campaign.rows[0].id;
 
@@ -201,10 +211,10 @@ router.post('/send', async (req, res) => {
     for (const email of valid) {
       const sendRow = await client.query(
         `INSERT INTO email_sends
-          (campaign_id, event_id, recipient_email, subject, html_body, status)
-         VALUES ($1, $2, $3, $4, $5, 'pending')
+          (campaign_id, event_id, recipient_email, subject, html_body, status, sent_by_user_id)
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6)
          RETURNING id`,
-        [campaignId, eventId, email, subjectFinal, htmlFinal]
+        [campaignId, eventId, email, subjectFinal, htmlFinal, senderId]
       );
       const sendId = sendRow.rows[0].id;
 
@@ -252,6 +262,7 @@ router.post('/send', async (req, res) => {
       failure,
       invalid,
       results,
+      quota: await getRemainingQuota(req.user),
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -260,19 +271,26 @@ router.post('/send', async (req, res) => {
     client.release();
   }
 });
-
 /** Resend a previous send by id */
 router.post('/sends/:id/resend', async (req, res) => {
   const client = await pool.connect();
   try {
+    const quota = await getRemainingQuota(req.user);
+    if (quota.limited && quota.remaining < 1) {
+      return res.status(403).json({
+        error: `Send limit reached (${quota.used}/${quota.limit}). Ask the superadmin to raise your limit.`,
+        quota,
+      });
+    }
+
     const { rows } = await client.query(`SELECT * FROM email_sends WHERE id = $1`, [req.params.id]);
     const original = rows[0];
     if (!original) return res.status(404).json({ error: 'Send record not found' });
 
     const newRow = await client.query(
       `INSERT INTO email_sends
-        (campaign_id, event_id, recipient_email, subject, html_body, status)
-       VALUES ($1, $2, $3, $4, $5, 'pending')
+        (campaign_id, event_id, recipient_email, subject, html_body, status, sent_by_user_id)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6)
        RETURNING *`,
       [
         original.campaign_id,
@@ -280,6 +298,7 @@ router.post('/sends/:id/resend', async (req, res) => {
         original.recipient_email,
         original.subject,
         original.html_body,
+        req.user.id,
       ]
     );
 
@@ -296,7 +315,7 @@ router.post('/sends/:id/resend', async (req, res) => {
          RETURNING *`,
         [info.messageId, newRow.rows[0].id]
       );
-      res.json({ ok: true, send: updated[0] });
+      res.json({ ok: true, send: updated[0], quota: await getRemainingQuota(req.user) });
     } catch (err) {
       const { rows: updated } = await client.query(
         `UPDATE email_sends
@@ -322,6 +341,14 @@ router.post('/sends/resend-bulk', async (req, res) => {
       return res.status(400).json({ error: 'ids array required' });
     }
 
+    const quota = await getRemainingQuota(req.user);
+    if (quota.limited && ids.length > quota.remaining) {
+      return res.status(403).json({
+        error: `Send limit exceeded. You can send ${quota.remaining} more email(s).`,
+        quota,
+      });
+    }
+
     const results = [];
     for (const id of ids) {
       const { rows } = await pool.query(`SELECT * FROM email_sends WHERE id = $1`, [id]);
@@ -333,8 +360,8 @@ router.post('/sends/resend-bulk', async (req, res) => {
 
       const inserted = await pool.query(
         `INSERT INTO email_sends
-          (campaign_id, event_id, recipient_email, subject, html_body, status)
-         VALUES ($1, $2, $3, $4, $5, 'pending')
+          (campaign_id, event_id, recipient_email, subject, html_body, status, sent_by_user_id)
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6)
          RETURNING id`,
         [
           original.campaign_id,
@@ -342,6 +369,7 @@ router.post('/sends/resend-bulk', async (req, res) => {
           original.recipient_email,
           original.subject,
           original.html_body,
+          req.user.id,
         ]
       );
 

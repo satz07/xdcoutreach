@@ -133,6 +133,10 @@ async function ensureSchema() {
         role TEXT NOT NULL DEFAULT 'admin',
         active BOOLEAN NOT NULL DEFAULT TRUE,
         invited_by TEXT,
+        password_hash TEXT,
+        invite_token TEXT,
+        invite_token_expires_at TIMESTAMPTZ,
+        email_send_limit INTEGER,
         last_login_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
@@ -148,14 +152,56 @@ async function ensureSchema() {
 
       CREATE INDEX IF NOT EXISTS idx_login_otps_email ON login_otps(email);
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+      CREATE INDEX IF NOT EXISTS idx_users_invite_token ON users(invite_token);
     `);
 
+    // Migrations for existing DBs
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_token TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_token_expires_at TIMESTAMPTZ;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email_send_limit INTEGER;
+      ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS sent_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+      ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS sent_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_email_sends_sent_by ON email_sends(sent_by_user_id);
+      CREATE INDEX IF NOT EXISTS idx_users_invite_token ON users(invite_token);
+    `);
+
+    const { hashPassword } = require('./middleware/auth');
+    const superPass = process.env.SUPERADMIN_PASSWORD || 'ChangeMeNow!2026';
+    const superHash = await hashPassword(superPass);
+
     await client.query(
-      `INSERT INTO users (email, role, active)
-       VALUES ($1, 'superadmin', TRUE)
-       ON CONFLICT (email) DO UPDATE SET role = 'superadmin', active = TRUE`,
-      [SUPERADMIN_EMAIL]
+      `INSERT INTO users (email, role, active, password_hash, email_send_limit)
+       VALUES ($1, 'superadmin', TRUE, $2, NULL)
+       ON CONFLICT (email) DO UPDATE SET
+         role = 'superadmin',
+         active = TRUE,
+         password_hash = COALESCE(users.password_hash, EXCLUDED.password_hash),
+         email_send_limit = NULL`,
+      [SUPERADMIN_EMAIL, superHash]
     );
+
+    // If SUPERADMIN_PASSWORD is explicitly set, always sync it
+    if (process.env.SUPERADMIN_PASSWORD) {
+      await client.query(`UPDATE users SET password_hash = $2 WHERE email = $1`, [
+        SUPERADMIN_EMAIL,
+        superHash,
+      ]);
+      console.log('Superadmin password synced from SUPERADMIN_PASSWORD');
+    } else {
+      const check = await client.query(
+        `SELECT password_hash FROM users WHERE email = $1`,
+        [SUPERADMIN_EMAIL]
+      );
+      if (!check.rows[0]?.password_hash) {
+        await client.query(`UPDATE users SET password_hash = $2 WHERE email = $1`, [
+          SUPERADMIN_EMAIL,
+          superHash,
+        ]);
+        console.log('Superadmin password initialized (set SUPERADMIN_PASSWORD in production)');
+      }
+    }
 
     const eventRes = await client.query(
       `INSERT INTO events (name, slug, location, dates)

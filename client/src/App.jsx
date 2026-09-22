@@ -6,6 +6,7 @@ import {
   getStoredUser,
   setSession,
   clearSession,
+  getInviteTokenFromUrl,
 } from './api';
 import LoginScreen from './LoginScreen';
 
@@ -101,10 +102,15 @@ export default function App() {
   const [newEvent, setNewEvent] = useState({ name: '', slug: '', location: '', dates: '' });
 
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteLimit, setInviteLimit] = useState('');
   const [users, setUsers] = useState([]);
   const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteLinkNotice, setInviteLinkNotice] = useState('');
+  const [quota, setQuota] = useState(null);
+  const [limitEdits, setLimitEdits] = useState({});
 
   const isSuperAdmin = user?.role === 'superadmin';
+  const inviteToken = getInviteTokenFromUrl();
 
   const contentPayload = useMemo(
     () => ({
@@ -124,9 +130,10 @@ export default function App() {
         return;
       }
       try {
-        const { user: me } = await api.me();
+        const { user: me, quota: q } = await api.me();
         if (!cancelled) {
           setUser(me);
+          setQuota(q || null);
           setSession(getToken(), me);
         }
       } catch {
@@ -233,15 +240,30 @@ export default function App() {
     setInviteBusy(true);
     setError('');
     setNotice('');
+    setInviteLinkNotice('');
     try {
-      await api.inviteUser(inviteEmail.trim());
-      setNotice(`Invite sent to ${inviteEmail.trim()}`);
+      const res = await api.inviteUser(inviteEmail.trim(), inviteLimit);
+      setNotice(res.message || `Invite created for ${inviteEmail.trim()}`);
+      if (res.inviteLink) setInviteLinkNotice(res.inviteLink);
       setInviteEmail('');
       loadUsers();
     } catch (err) {
       setError(err.message);
     } finally {
       setInviteBusy(false);
+    }
+  }
+
+  async function handleSaveLimit(id) {
+    setError('');
+    try {
+      const raw = limitEdits[id];
+      const email_send_limit = raw === '' || raw == null ? null : Number(raw);
+      await api.updateUser(id, { email_send_limit });
+      setNotice('Send limit updated');
+      loadUsers();
+    } catch (err) {
+      setError(err.message);
     }
   }
 
@@ -315,6 +337,7 @@ export default function App() {
       setNotice(
         `Campaign #${result.campaignId}: ${result.success} sent, ${result.failure} failed.`
       );
+      if (result.quota) setQuota(result.quota);
       if (tab !== 'history') {
         // keep compose; user can switch
       }
@@ -391,7 +414,15 @@ export default function App() {
   }
 
   if (!user) {
-    return <LoginScreen onAuthenticated={setUser} />;
+    return (
+      <LoginScreen
+        inviteToken={inviteToken}
+        onAuthenticated={(u, q) => {
+          setUser(u);
+          setQuota(q || null);
+        }}
+      />
+    );
   }
 
   return (
@@ -414,6 +445,11 @@ export default function App() {
           <span className="pill user-pill" title={user.email}>
             {isSuperAdmin ? 'Superadmin' : 'Admin'} · {user.email}
           </span>
+          {quota?.limited && (
+            <span className="pill">
+              Sends left: {quota.remaining}/{quota.limit}
+            </span>
+          )}
           <nav className="tabs">
             <button className={tab === 'compose' ? 'active' : ''} onClick={() => setTab('compose')}>
               Compose & Send
@@ -448,8 +484,8 @@ export default function App() {
           <div className="panel-head">
             <h2>Invite admins</h2>
             <p>
-              Only superadmin can invite people. Invited admins sign in with email + OTP and can
-              send outreach emails — they cannot invite others.
+              Only invited emails can access. They set a password from the invite link, then sign
+              in. You can cap how many outreach emails each admin may send.
             </p>
           </div>
 
@@ -464,10 +500,37 @@ export default function App() {
                 placeholder="colleague@xinfin.org"
               />
             </label>
+            <label>
+              Email send limit
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={inviteLimit}
+                onChange={(e) => setInviteLimit(e.target.value)}
+                placeholder="e.g. 100 (blank = unlimited)"
+              />
+            </label>
+            <p className="hint">Leave blank for unlimited. Counts successful sends only.</p>
             <button type="submit" className="primary" disabled={inviteBusy}>
-              {inviteBusy ? 'Sending invite…' : 'Send invite'}
+              {inviteBusy ? 'Creating invite…' : 'Invite admin'}
             </button>
           </form>
+
+          {inviteLinkNotice && (
+            <div className="banner ok invite-link-box">
+              <strong>Invite link</strong> (share if email delivery fails):
+              <br />
+              <code>{inviteLinkNotice}</code>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => navigator.clipboard?.writeText(inviteLinkNotice)}
+              >
+                Copy link
+              </button>
+            </div>
+          )}
 
           <div className="users-table-wrap">
             <h3>People with access</h3>
@@ -477,7 +540,7 @@ export default function App() {
                   <th>Email</th>
                   <th>Role</th>
                   <th>Status</th>
-                  <th>Invited by</th>
+                  <th>Sent / Limit</th>
                   <th>Last login</th>
                   <th />
                 </tr>
@@ -487,8 +550,45 @@ export default function App() {
                   <tr key={u.id}>
                     <td>{u.email}</td>
                     <td>{u.role}</td>
-                    <td>{u.active ? 'Active' : 'Inactive'}</td>
-                    <td>{u.invited_by || '—'}</td>
+                    <td>
+                      {!u.active
+                        ? 'Inactive'
+                        : u.pending_invite
+                          ? 'Pending invite'
+                          : u.has_password
+                            ? 'Active'
+                            : 'Needs password'}
+                    </td>
+                    <td>
+                      {u.role === 'superadmin' ? (
+                        'Unlimited'
+                      ) : (
+                        <div className="limit-edit">
+                          <span>{u.emails_sent ?? 0} / </span>
+                          <input
+                            type="number"
+                            min="0"
+                            className="limit-input"
+                            placeholder="∞"
+                            value={
+                              limitEdits[u.id] !== undefined
+                                ? limitEdits[u.id]
+                                : u.email_send_limit ?? ''
+                            }
+                            onChange={(e) =>
+                              setLimitEdits((prev) => ({ ...prev, [u.id]: e.target.value }))
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => handleSaveLimit(u.id)}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      )}
+                    </td>
                     <td>{formatTime(u.last_login_at)}</td>
                     <td>
                       {u.role !== 'superadmin' && u.active && (

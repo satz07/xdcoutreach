@@ -50,14 +50,24 @@ async function request(path, options = {}) {
 
 export const api = {
   health: () => request('/health'),
-  requestOtp: (email) =>
-    request('/auth/request-otp', { method: 'POST', body: JSON.stringify({ email }) }),
-  verifyOtp: (email, code) =>
-    request('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ email, code }) }),
+  login: (email, password) =>
+    request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  getInvite: (token) => request(`/auth/invite/${encodeURIComponent(token)}`),
+  setPassword: (token, password) =>
+    request('/auth/set-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
   me: () => request('/auth/me'),
   listUsers: () => request('/auth/users'),
-  inviteUser: (email) =>
-    request('/auth/invite', { method: 'POST', body: JSON.stringify({ email }) }),
+  inviteUser: (email, email_send_limit) =>
+    request('/auth/invite', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        email_send_limit:
+          email_send_limit === '' || email_send_limit == null ? null : Number(email_send_limit),
+      }),
+    }),
+  updateUser: (id, body) =>
+    request(`/auth/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deactivateUser: (id) => request(`/auth/users/${id}/deactivate`, { method: 'POST' }),
   events: () => request('/events'),
   createEvent: (body) => request('/events', { method: 'POST', body: JSON.stringify(body) }),
@@ -79,4 +89,12 @@ export const api = {
 
 export function logoUrl(name) {
   return `${API_BASE}/logos/${name}`;
+}
+
+export function getInviteTokenFromUrl() {
+  try {
+    return new URLSearchParams(window.location.search).get('invite') || '';
+  } catch {
+    return '';
+  }
 }

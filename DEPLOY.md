@@ -16,14 +16,17 @@
 - `APP_URL` — public Railway API URL (for absolute logo links in emails if needed)
 - `JWT_SECRET` — long random string (required for login sessions)
 - `SUPERADMIN_EMAIL` — default `satheesh@xinfin.org`
-- `OTP_TTL_MINUTES` — optional, default `10`
+- `SUPERADMIN_PASSWORD` — initial / reset password for the superadmin
+- `INVITE_TTL_DAYS` — optional, default `7`
+- `RESEND_API_KEY` — optional; use if Gmail SMTP is blocked (Railway)
 
 ### Auth model
 
-1. Only invited emails (plus the seeded superadmin) can request an OTP.
-2. Everyone signs in with **email → OTP → JWT** (no passwords).
-3. **Superadmin** can invite admins (Invite Admins tab) and deactivate them.
-4. **Admins** can compose/send emails but cannot invite anyone.
+1. Only the superadmin and **invited** emails can access.
+2. Superadmin invites an admin (with optional **email send limit**) → invite link to set password.
+3. Admins sign in with **email + password** (no OTP).
+4. Superadmin can change each admin's send limit anytime; sends are blocked when the cap is hit.
+5. Admins cannot invite others.
 
 ### Vercel (UI)
 
