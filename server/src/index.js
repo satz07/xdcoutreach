@@ -152,10 +152,9 @@ async function ensureSchema() {
 
       CREATE INDEX IF NOT EXISTS idx_login_otps_email ON login_otps(email);
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-      CREATE INDEX IF NOT EXISTS idx_users_invite_token ON users(invite_token);
     `);
 
-    // Migrations for existing DBs
+    // Migrations for existing DBs (must run before indexes on new columns)
     await client.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_token TEXT;
@@ -163,6 +162,9 @@ async function ensureSchema() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS email_send_limit INTEGER;
       ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS sent_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
       ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS sent_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    `);
+
+    await client.query(`
       CREATE INDEX IF NOT EXISTS idx_email_sends_sent_by ON email_sends(sent_by_user_id);
       CREATE INDEX IF NOT EXISTS idx_users_invite_token ON users(invite_token);
     `);
