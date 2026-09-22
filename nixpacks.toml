@@ -2,7 +2,10 @@
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["npm install"]
+cmds = ["npm install --omit=dev"]
+
+[phases.build]
+cmds = ["echo 'API-only build'"]
 
 [start]
 cmd = "node server/src/index.js"

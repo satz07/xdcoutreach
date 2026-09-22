@@ -9,8 +9,12 @@
     "client": "npm run dev --prefix client",
     "install:all": "npm install && npm install --prefix client",
     "db:init": "node server/src/db/migrate.js",
-    "build": "npm run build --prefix client",
+    "build": "echo 'Skipping client build on API host'",
+    "build:client": "npm install --prefix client && npm run build --prefix client",
     "start": "NODE_ENV=production node server/src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "cors": "^2.8.5",
