@@ -1,39 +1,181 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
+const net = require('net');
+const tls = require('tls');
 const fs = require('fs');
 const path = require('path');
 
+// Prefer IPv4 — cloud hosts often hang on IPv6 SMTP AAAA routes
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch (_) {
+  /* older Node */
+}
+
 const LOGOS_DIR = path.join(__dirname, '../../../public/logos');
 
-function getTransporter() {
-  const port = Number(process.env.SMTP_PORT || 587);
-  const secure =
-    String(process.env.SMTP_SECURE) === 'true' || port === 465;
+function ipv4Lookup(hostname, options, callback) {
+  dns.lookup(hostname, { ...options, family: 4 }, callback);
+}
 
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+function smtpBaseOptions(overrides = {}) {
+  const port = Number(overrides.port ?? process.env.SMTP_PORT ?? 587);
+  const secure =
+    overrides.secure != null
+      ? overrides.secure
+      : String(process.env.SMTP_SECURE) === 'true' || port === 465;
+  const host = overrides.host || process.env.SMTP_HOST || 'smtp.gmail.com';
+
+  return {
+    host,
     port,
     secure,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    // Railway / cloud hosts often need longer SMTP connect windows
-    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT || 25000),
-    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT || 25000),
-    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT || 45000),
+    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT || 15000),
+    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT || 15000),
+    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT || 30000),
     tls: {
       minVersion: 'TLSv1.2',
-      servername: process.env.SMTP_HOST || 'smtp.gmail.com',
+      servername: host,
     },
     requireTLS: !secure && port === 587,
+    lookup: ipv4Lookup,
+    ...overrides,
+  };
+}
+
+function getTransporter(overrides = {}) {
+  return nodemailer.createTransport(smtpBaseOptions(overrides));
+}
+
+async function sendViaResend({ from, to, subject, html, text, attachments }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error('RESEND_API_KEY not set');
+
+  const payload = {
+    from,
+    to: [to],
+    subject,
+    html,
+    text: text || undefined,
+  };
+
+  // Resend inline attachments (optional; campaign logos)
+  if (attachments && attachments.length) {
+    payload.attachments = await Promise.all(
+      attachments.map(async (a) => {
+        const content = fs.readFileSync(a.path).toString('base64');
+        return {
+          filename: a.filename,
+          content,
+          content_id: a.cid,
+        };
+      })
+    );
+  }
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
   });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || data.error || `Resend failed (${res.status})`);
+  }
+  return {
+    messageId: data.id,
+    accepted: [to],
+    rejected: [],
+    provider: 'resend',
+  };
 }
 
 /**
- * Send with primary SMTP settings; if connect times out on 587,
- * retry once over SSL 465 (common fix on Railway / cloud hosts).
+ * Probe TCP/TLS reachability (used by /api/health/smtp).
+ */
+function probeHost(host, port, secure, timeoutMs = 8000) {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const done = (ok, detail) => {
+      resolve({ host, port, secure, ok, detail, ms: Date.now() - started });
+    };
+    const timer = setTimeout(() => {
+      try {
+        socket.destroy();
+      } catch (_) {}
+      done(false, 'timeout');
+    }, timeoutMs);
+
+    let socket;
+    const onConnect = () => {
+      clearTimeout(timer);
+      try {
+        socket.destroy();
+      } catch (_) {}
+      done(true, 'connected');
+    };
+    const onError = (err) => {
+      clearTimeout(timer);
+      done(false, err.message);
+    };
+
+    try {
+      if (secure) {
+        socket = tls.connect({ host, port, servername: host, lookup: ipv4Lookup }, onConnect);
+      } else {
+        socket = net.connect({ host, port, lookup: ipv4Lookup }, onConnect);
+      }
+      socket.on('error', onError);
+    } catch (err) {
+      clearTimeout(timer);
+      done(false, err.message);
+    }
+  });
+}
+
+async function diagnoseSmtp() {
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const probes = await Promise.all([
+    probeHost(host, 465, true),
+    probeHost(host, 587, false),
+    probeHost('api.resend.com', 443, true),
+  ]);
+  return {
+    smtpHost: host,
+    smtpPort: process.env.SMTP_PORT,
+    smtpSecure: process.env.SMTP_SECURE,
+    smtpUser: process.env.SMTP_USER ? 'set' : 'missing',
+    resendKey: process.env.RESEND_API_KEY ? 'set' : 'missing',
+    mailProvider: process.env.MAIL_PROVIDER || (process.env.RESEND_API_KEY ? 'resend' : 'smtp'),
+    probes,
+  };
+}
+
+/**
+ * Send with Resend (HTTPS) when configured, else SMTP with IPv4 + 465 fallback.
  */
 async function sendMailWithFallback(mailOptions) {
+  const provider = (process.env.MAIL_PROVIDER || '').toLowerCase();
+  const preferResend = provider === 'resend' || (!provider && process.env.RESEND_API_KEY);
+
+  if (preferResend && process.env.RESEND_API_KEY) {
+    return sendViaResend({
+      from: mailOptions.from,
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+      html: mailOptions.html,
+      text: mailOptions.text,
+      attachments: mailOptions.attachments,
+    });
+  }
+
   const transporter = getTransporter();
   try {
     return await transporter.sendMail(mailOptions);
@@ -45,28 +187,23 @@ async function sendMailWithFallback(mailOptions) {
       /timeout|connect/i.test(err.message || '');
 
     if (!isConnectTimeout || port === 465 || process.env.SMTP_NO_FALLBACK === 'true') {
+      // Last resort: Resend if key exists even when provider=smtp
+      if (process.env.RESEND_API_KEY && isConnectTimeout) {
+        console.warn(`SMTP failed (${err.message}); falling back to Resend HTTPS…`);
+        return sendViaResend({
+          from: mailOptions.from,
+          to: mailOptions.to,
+          subject: mailOptions.subject,
+          html: mailOptions.html,
+          text: mailOptions.text,
+          attachments: mailOptions.attachments,
+        });
+      }
       throw err;
     }
 
-    console.warn(
-      `SMTP ${port} failed (${err.message}); retrying smtp.gmail.com:465 SSL…`
-    );
-    const fallback = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-      connectionTimeout: 25000,
-      greetingTimeout: 25000,
-      socketTimeout: 45000,
-      tls: {
-        minVersion: 'TLSv1.2',
-        servername: process.env.SMTP_HOST || 'smtp.gmail.com',
-      },
-    });
+    console.warn(`SMTP ${port} failed (${err.message}); retrying ${process.env.SMTP_HOST || 'smtp.gmail.com'}:465 SSL…`);
+    const fallback = getTransporter({ port: 465, secure: true });
     return fallback.sendMail(mailOptions);
   }
 }
@@ -102,7 +239,11 @@ function logoAttachments() {
 function resolveLogoAttachments() {
   const preferred = [
     { filename: 'xdc-logo.png', cid: 'xdc-logo', candidates: ['xdc.png', 'xdc-dark.png', 'xdc.svg'] },
-    { filename: 'contour-logo.png', cid: 'contour-logo', candidates: ['contour.png', 'Contour_0.png', 'Contour_2.jpeg', 'contour-mark.jpeg'] },
+    {
+      filename: 'contour-logo.png',
+      cid: 'contour-logo',
+      candidates: ['contour.png', 'Contour_0.png', 'Contour_2.jpeg', 'contour-mark.jpeg'],
+    },
   ];
 
   return preferred
@@ -110,7 +251,12 @@ function resolveLogoAttachments() {
       for (const name of candidates) {
         const p = path.join(LOGOS_DIR, name);
         if (fs.existsSync(p)) {
-          return { filename: name.endsWith('.svg') ? name : filename, path: p, cid, contentDisposition: 'inline' };
+          return {
+            filename: name.endsWith('.svg') ? name : filename,
+            path: p,
+            cid,
+            contentDisposition: 'inline',
+          };
         }
       }
       return null;
@@ -119,11 +265,13 @@ function resolveLogoAttachments() {
 }
 
 async function sendOneEmail({ to, subject, html, text, includeLogos = true, fromName }) {
-  const from = process.env.SMTP_FROM || process.env.OTP_EMAIL_FROM || process.env.SMTP_USER;
+  const fromAddr = process.env.SMTP_FROM || process.env.OTP_EMAIL_FROM || process.env.SMTP_USER;
   const name = fromName || 'XDC Network & Contour';
+  // Resend requires "Name <email@domain>"
+  const from = `"${name}" <${fromAddr}>`;
 
   const info = await sendMailWithFallback({
-    from: `"${name}" <${from}>`,
+    from,
     to,
     subject,
     html,
@@ -135,6 +283,7 @@ async function sendOneEmail({ to, subject, html, text, includeLogos = true, from
     messageId: info.messageId,
     accepted: info.accepted,
     rejected: info.rejected,
+    provider: info.provider || 'smtp',
   };
 }
 
@@ -169,4 +318,5 @@ module.exports = {
   parseRecipients,
   resolveLogoAttachments,
   logoAttachments,
+  diagnoseSmtp,
 };

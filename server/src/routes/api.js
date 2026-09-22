@@ -16,6 +16,17 @@ router.get('/health', async (_req, res) => {
   }
 });
 
+/** SMTP connectivity probe — public (no secrets) */
+router.get('/health/smtp', async (_req, res) => {
+  try {
+    const { diagnoseSmtp } = require('../services/mailer');
+    const report = await diagnoseSmtp();
+    res.json({ ok: true, ...report });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 router.use(requireAuth);
 
 /** List events */
