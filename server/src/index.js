@@ -5,7 +5,9 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const api = require('./routes/api');
+const auth = require('./routes/auth');
 const { pool } = require('./db/pool');
+const { SUPERADMIN_EMAIL } = require('./middleware/auth');
 
 const app = express();
 const PORT = Number(process.env.PORT || 5050);
@@ -27,6 +29,7 @@ app.use(
 );
 app.use(express.json({ limit: '2mb' }));
 app.use('/logos', express.static(path.join(__dirname, '../../public/logos')));
+app.use('/api/auth', auth);
 app.use('/api', api);
 
 app.get('/', (_req, res) => {
@@ -123,7 +126,36 @@ async function ensureSchema() {
       CREATE INDEX IF NOT EXISTS idx_email_sends_recipient ON email_sends(recipient_email);
       CREATE INDEX IF NOT EXISTS idx_email_sends_campaign ON email_sends(campaign_id);
       CREATE INDEX IF NOT EXISTS idx_email_sends_sent_at ON email_sends(sent_at DESC);
+
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        role TEXT NOT NULL DEFAULT 'admin',
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        invited_by TEXT,
+        last_login_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS login_otps (
+        id SERIAL PRIMARY KEY,
+        email TEXT NOT NULL,
+        code TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_login_otps_email ON login_otps(email);
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     `);
+
+    await client.query(
+      `INSERT INTO users (email, role, active)
+       VALUES ($1, 'superadmin', TRUE)
+       ON CONFLICT (email) DO UPDATE SET role = 'superadmin', active = TRUE`,
+      [SUPERADMIN_EMAIL]
+    );
 
     const eventRes = await client.query(
       `INSERT INTO events (name, slug, location, dates)

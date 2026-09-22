@@ -63,17 +63,18 @@ function resolveLogoAttachments() {
     .filter(Boolean);
 }
 
-async function sendOneEmail({ to, subject, html, text }) {
+async function sendOneEmail({ to, subject, html, text, includeLogos = true, fromName }) {
   const transporter = getTransporter();
   const from = process.env.SMTP_FROM || process.env.OTP_EMAIL_FROM || process.env.SMTP_USER;
+  const name = fromName || 'XDC Network & Contour';
 
   const info = await transporter.sendMail({
-    from: `"XDC Network & Contour" <${from}>`,
+    from: `"${name}" <${from}>`,
     to,
     subject,
     html,
     text: text || undefined,
-    attachments: resolveLogoAttachments(),
+    attachments: includeLogos ? resolveLogoAttachments() : [],
   });
 
   return {

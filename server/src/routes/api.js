@@ -2,8 +2,21 @@ const express = require('express');
 const { pool } = require('../db/pool');
 const { sendOneEmail, parseRecipients } = require('../services/mailer');
 const { buildSibosEmailHtml } = require('../templates/sibosEmail');
+const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
+
+/** SMTP health check (no email sent) — public */
+router.get('/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ok: true, db: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+router.use(requireAuth);
 
 /** List events */
 router.get('/events', async (_req, res) => {
@@ -401,16 +414,6 @@ router.get('/campaigns', async (_req, res) => {
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
-  }
-});
-
-/** SMTP health check (no email sent) */
-router.get('/health', async (_req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.json({ ok: true, db: true });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
   }
 });
 

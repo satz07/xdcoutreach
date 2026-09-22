@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, logoUrl } from './api';
+import {
+  api,
+  logoUrl,
+  getToken,
+  getStoredUser,
+  setSession,
+  clearSession,
+} from './api';
+import LoginScreen from './LoginScreen';
 
 const DEFAULT_SUBJECT =
   'Meet XDC Network & Contour at Sibos 2026 (Booth #DIS 43): Real-Time Settlement, Trade Finance & Agentic Payments';
@@ -63,6 +71,9 @@ function formatTime(iso) {
 }
 
 export default function App() {
+  const [user, setUser] = useState(() => (getToken() ? getStoredUser() : null));
+  const [authChecking, setAuthChecking] = useState(() => Boolean(getToken()));
+
   const [tab, setTab] = useState('compose');
   const [health, setHealth] = useState(null);
   const [events, setEvents] = useState([]);
@@ -89,6 +100,12 @@ export default function App() {
 
   const [newEvent, setNewEvent] = useState({ name: '', slug: '', location: '', dates: '' });
 
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [users, setUsers] = useState([]);
+  const [inviteBusy, setInviteBusy] = useState(false);
+
+  const isSuperAdmin = user?.role === 'superadmin';
+
   const contentPayload = useMemo(
     () => ({
       ...content,
@@ -99,7 +116,36 @@ export default function App() {
     [content]
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      if (!getToken()) {
+        setAuthChecking(false);
+        return;
+      }
+      try {
+        const { user: me } = await api.me();
+        if (!cancelled) {
+          setUser(me);
+          setSession(getToken(), me);
+        }
+      } catch {
+        if (!cancelled) {
+          clearSession();
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) setAuthChecking(false);
+      }
+    }
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const loadBase = useCallback(async () => {
+    if (!user) return;
     try {
       const [h, ev, tm] = await Promise.all([api.health(), api.events(), api.templates()]);
       setHealth(h);
@@ -108,22 +154,36 @@ export default function App() {
       if (tm[0]) {
         setTemplateId(tm[0].id);
         setEventId(tm[0].event_id);
-        // Keep editor on the latest compose defaults; DB holds last saved HTML for sends
       }
       if (ev[0] && !eventId) setEventId(ev[0].id);
     } catch (err) {
+      if (/auth|session|Authentication/i.test(err.message)) {
+        clearSession();
+        setUser(null);
+      }
       setError(err.message);
     }
-  }, [eventId]);
+  }, [eventId, user]);
+
+  const loadUsers = useCallback(async () => {
+    if (!isSuperAdmin) return;
+    try {
+      const data = await api.listUsers();
+      setUsers(data.users || []);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [isSuperAdmin]);
 
   const refreshPreview = useCallback(async () => {
+    if (!user) return;
     try {
       const { html } = await api.preview(contentPayload);
       setPreviewHtml(html);
     } catch (err) {
       setError(err.message);
     }
-  }, [contentPayload]);
+  }, [contentPayload, user]);
 
   const loadHistory = useCallback(async () => {
     setLoadingHistory(true);
@@ -142,19 +202,58 @@ export default function App() {
   }, [filterQ, filterStatus]);
 
   useEffect(() => {
-    loadBase();
-  }, [loadBase]);
+    if (user) loadBase();
+  }, [loadBase, user]);
 
   useEffect(() => {
-    refreshPreview();
-  }, [refreshPreview]);
+    if (user) refreshPreview();
+  }, [refreshPreview, user]);
 
   useEffect(() => {
-    if (tab === 'history') loadHistory();
-  }, [tab, loadHistory]);
+    if (user && tab === 'history') loadHistory();
+  }, [tab, loadHistory, user]);
+
+  useEffect(() => {
+    if (user && tab === 'admins' && isSuperAdmin) loadUsers();
+  }, [tab, loadUsers, user, isSuperAdmin]);
 
   function updateField(key, value) {
     setContent((c) => ({ ...c, [key]: value }));
+  }
+
+  function logout() {
+    clearSession();
+    setUser(null);
+    setError('');
+    setNotice('');
+  }
+
+  async function handleInvite(e) {
+    e.preventDefault();
+    setInviteBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await api.inviteUser(inviteEmail.trim());
+      setNotice(`Invite sent to ${inviteEmail.trim()}`);
+      setInviteEmail('');
+      loadUsers();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+
+  async function handleDeactivate(id) {
+    setError('');
+    try {
+      await api.deactivateUser(id);
+      setNotice('Admin deactivated');
+      loadUsers();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function saveTemplate() {
@@ -280,6 +379,21 @@ export default function App() {
     });
   }
 
+  if (authChecking) {
+    return (
+      <div className="app auth-app">
+        <div className="auth-card">
+          <p className="eyebrow">XDC Outreach</p>
+          <h1>Checking session…</h1>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen onAuthenticated={setUser} />;
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -297,6 +411,9 @@ export default function App() {
           <span className={`pill ${health?.ok ? 'ok' : 'bad'}`}>
             {health?.ok ? 'DB connected' : 'DB offline'}
           </span>
+          <span className="pill user-pill" title={user.email}>
+            {isSuperAdmin ? 'Superadmin' : 'Admin'} · {user.email}
+          </span>
           <nav className="tabs">
             <button className={tab === 'compose' ? 'active' : ''} onClick={() => setTab('compose')}>
               Compose & Send
@@ -307,7 +424,15 @@ export default function App() {
             <button className={tab === 'events' ? 'active' : ''} onClick={() => setTab('events')}>
               Events
             </button>
+            {isSuperAdmin && (
+              <button className={tab === 'admins' ? 'active' : ''} onClick={() => setTab('admins')}>
+                Invite Admins
+              </button>
+            )}
           </nav>
+          <button type="button" className="ghost logout-btn" onClick={logout}>
+            Sign out
+          </button>
         </div>
       </header>
 
@@ -316,6 +441,72 @@ export default function App() {
           {error && <div className="banner error">{error}</div>}
           {notice && <div className="banner ok">{notice}</div>}
         </div>
+      )}
+
+      {tab === 'admins' && isSuperAdmin && (
+        <main className="panel invite-panel">
+          <div className="panel-head">
+            <h2>Invite admins</h2>
+            <p>
+              Only superadmin can invite people. Invited admins sign in with email + OTP and can
+              send outreach emails — they cannot invite others.
+            </p>
+          </div>
+
+          <form className="invite-form" onSubmit={handleInvite}>
+            <label>
+              Admin email
+              <input
+                type="email"
+                required
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="colleague@xinfin.org"
+              />
+            </label>
+            <button type="submit" className="primary" disabled={inviteBusy}>
+              {inviteBusy ? 'Sending invite…' : 'Send invite'}
+            </button>
+          </form>
+
+          <div className="users-table-wrap">
+            <h3>People with access</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Invited by</th>
+                  <th>Last login</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.email}</td>
+                    <td>{u.role}</td>
+                    <td>{u.active ? 'Active' : 'Inactive'}</td>
+                    <td>{u.invited_by || '—'}</td>
+                    <td>{formatTime(u.last_login_at)}</td>
+                    <td>
+                      {u.role !== 'superadmin' && u.active && (
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => handleDeactivate(u.id)}
+                        >
+                          Deactivate
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </main>
       )}
 
       {tab === 'compose' && (
