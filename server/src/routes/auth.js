@@ -95,7 +95,12 @@ router.post('/request-otp', async (req, res) => {
     });
   } catch (err) {
     console.error('request-otp error:', err);
-    res.status(500).json({ error: err.message || 'Failed to send OTP' });
+    const msg = err.message || 'Failed to send OTP';
+    const friendly =
+      /timeout|ETIMEDOUT|ESOCKET|connect/i.test(msg)
+        ? 'Could not reach the email server. Please try again in a moment.'
+        : msg;
+    res.status(500).json({ error: friendly });
   }
 });
 
