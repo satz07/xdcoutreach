@@ -563,9 +563,28 @@ router.post('/sends/send-selected', async (req, res) => {
 router.post('/sends/import', requireSuperAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
-    const { recipients, clear = true, subject, html_body, text_body } = req.body || {};
-    const raw = Array.isArray(recipients) ? recipients.join('\n') : recipients;
-    const { valid, invalid } = parseRecipients(raw);
+    const { recipients, clear = true, subject, html_body } = req.body || {};
+    let valid = [];
+    let invalid = [];
+    if (Array.isArray(recipients)) {
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const seen = new Set();
+      for (const item of recipients) {
+        const email = String(item || '')
+          .trim()
+          .toLowerCase();
+        if (!email) continue;
+        if (!emailRe.test(email)) {
+          invalid.push(email);
+          continue;
+        }
+        if (seen.has(email)) continue;
+        seen.add(email);
+        valid.push(email);
+      }
+    } else {
+      ({ valid, invalid } = parseRecipients(recipients));
+    }
 
     if (valid.length === 0) {
       return res.status(400).json({ error: 'No valid recipients to import', invalid });
