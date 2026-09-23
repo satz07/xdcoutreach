@@ -84,7 +84,7 @@ function buildSibosEmailHtml(overrides = {}) {
     headline = 'Join XDC Network & Contour at Sibos 2026',
     location = 'Miami Beach Convention Center',
     dates = 'September 28 – October 1, 2026',
-    booth = 'Booth #DIS 43',
+    booth = 'Booth #DISS 43',
     greeting = 'Dear Partner,',
     intro = `As financial institutions prepare for an AI-driven economy, infrastructure must move beyond faster processing to autonomous execution, programmable liquidity, and compliant digital settlement.`,
     showcase = `At Sibos 2026, XDC Network and Contour are showcasing how institutions can unify enterprise Layer 1 blockchain rails with digitized trade and dollar-stable settlement to power modern commercial finance and the emerging agentic economy.`,
@@ -111,20 +111,20 @@ function buildSibosEmailHtml(overrides = {}) {
         body: 'Native HTTP 402 (x402) payment rails and gasless smart accounts enabling autonomous AI agents to initiate, reconcile, and settle expenses, compute, and API services compliantly.',
       },
     ],
-    leadershipTitle = 'Connect with Leadership at Booth #DIS 43',
-    cta = `Visit us at Booth #DIS 43 or schedule a dedicated 1-on-1 session with our executive delegation to explore institutional pilots, banking integrations, and liquidity partnership opportunities.`,
-    closing = 'We look forward to meeting you at Booth #DIS 43 in Miami Beach!',
+    leadershipTitle = 'Connect with Leadership at Booth #DISS 43',
+    cta = '',
+    closing = '',
     signOff = 'Best regards,\nThe XDC Network & Contour Delegation',
-    disclaimer = `Disclaimer: All banking, payment processing, card issuance, and regulated financial services are facilitated exclusively through appropriately authorized and licensed third-party financial institutions and partner entities in their respective jurisdictions. XDC Network and Contour provide technology infrastructure and do not themselves offer regulated banking or payment services.`,
+    disclaimer = `Disclaimer: All banking, payment processing, card issuance, and regulated financial services are facilitated exclusively through appropriately authorized and licensed third-party financial institutions and partner entities in their respective jurisdictions. XDC Network is a decentralized enterprise blockchain protocol provider and does not directly provide banking, deposit-taking, or custodial financial services.`,
     ctaEmail = 'santosh@xinfin.org',
-    ctaMailtoSubject = 'Sibos 2026 - Meeting Request (Booth #DIS 43)',
+    ctaMailtoSubject = 'Sibos 2026 - Meeting Request (Booth #DISS 43)',
     ctaMailtoBody =
-      'Hello,\n\nI would like to schedule a meeting with the XDC Network & Contour delegation at Sibos 2026 (Booth #DIS 43).\n\nPreferred times:\n\nThank you.',
+      'Hello,\n\nI would like to schedule a meeting with the XDC Network & Contour delegation at Sibos 2026 (Booth #DISS 43).\n\nPreferred times:\n\nThank you.',
     // mailto works on mobile Gmail/Apple Mail; gmail web URL often fails in mail apps
     ctaLinkType = 'mailto',
     ctaUrl,
     ctaLabel = 'Schedule a Meeting',
-    footerNote = 'XDC Network & Contour · Sibos 2026 · Booth #DIS 43',
+    footerNote = 'XDC Network & Contour · Sibos 2026 · Booth #DISS 43',
     xdcLogoSrc = 'cid:xdc-logo',
     contourLogoSrc = 'cid:contour-logo',
     topics,
@@ -211,7 +211,7 @@ function buildSibosEmailHtml(overrides = {}) {
 </head>
 <body style="margin:0;padding:0;background-color:#E8EEF6;width:100%;">
   <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
-    Meet XDC Network &amp; Contour at Sibos 2026 — Booth #DIS 43, Miami Beach.
+    Meet XDC Network &amp; Contour at Sibos 2026 — Booth #DISS 43, Miami Beach.
   </div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#E8EEF6;width:100%;">
     <tr>
@@ -285,9 +285,11 @@ function buildSibosEmailHtml(overrides = {}) {
               <p style="margin:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:#254C82;font-weight:700;">
                 ${escapeHtml(leadershipTitle)}
               </p>
-              <p style="margin:0 0 20px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.75;color:#243447;">
-                ${escapeHtml(cta)}
-              </p>
+              ${
+                cta
+                  ? `<p style="margin:0 0 20px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.75;color:#243447;">${escapeHtml(cta)}</p>`
+                  : '<div style="height:10px;line-height:10px;font-size:10px;">&nbsp;</div>'
+              }
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="email-btn" style="width:100%;max-width:320px;">
                 <tr>
                   <td align="center" bgcolor="#254C82" style="background-color:#254C82;border-radius:6px;">
@@ -304,7 +306,7 @@ function buildSibosEmailHtml(overrides = {}) {
           <!-- Closing -->
           <tr>
             <td class="email-pad" style="padding:18px 24px 8px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.75;color:#243447;background-color:#ffffff;">
-              <p style="margin:0 0 18px;">${escapeHtml(closing)}</p>
+              ${closing ? `<p style="margin:0 0 18px;">${escapeHtml(closing)}</p>` : ''}
               <p style="margin:0;color:#15294C;">${signOffHtml}</p>
             </td>
           </tr>

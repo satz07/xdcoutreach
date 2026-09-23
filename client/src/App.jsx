@@ -11,13 +11,13 @@ import {
 import LoginScreen from './LoginScreen';
 
 const DEFAULT_SUBJECT =
-  'Meet XDC Network & Contour at Sibos 2026 (Booth #DIS 43): Real-Time Settlement, Trade Finance & Agentic Payments';
+  'Meet XDC Network & Contour at Sibos 2026 (Booth #DISS 43): Agentic Payments, Trade Finance & Real-Time Settlement';
 
 const DEFAULT_CONTENT = {
   headline: 'Join XDC Network & Contour at Sibos 2026',
   location: 'Miami Beach Convention Center',
   dates: 'September 28 – October 1, 2026',
-  booth: 'Booth #DIS 43',
+  booth: 'Booth #DISS 43',
   greeting: 'Dear Partner,',
   intro:
     'As financial institutions prepare for an AI-driven economy, infrastructure must move beyond faster processing to autonomous execution, programmable liquidity, and compliant digital settlement.',
@@ -31,16 +31,16 @@ const DEFAULT_CONTENT = {
     'Digitized Trade Finance (Contour): Fully paperless Letters of Credit (LCs), electronic documentation, and milestone-based smart contract settlement integrated with ISO 20022 messaging.',
     'Autonomous Agentic Commerce (XDC AI): Native HTTP 402 (x402) payment rails and gasless smart accounts enabling autonomous AI agents to initiate, reconcile, and settle expenses, compute, and API services compliantly.',
   ].join('\n'),
-  leadershipTitle: 'Connect with Leadership at Booth #DIS 43',
-  cta: 'Visit us at Booth #DIS 43 or schedule a dedicated 1-on-1 session with our executive delegation to explore institutional pilots, banking integrations, and liquidity partnership opportunities.',
-  closing: 'We look forward to meeting you at Booth #DIS 43 in Miami Beach!',
+  leadershipTitle: 'Connect with Leadership at Booth #DISS 43',
+  cta: '',
+  closing: '',
   signOff: 'Best regards,\nThe XDC Network & Contour Delegation',
   disclaimer:
-    'Disclaimer: All banking, payment processing, card issuance, and regulated financial services are facilitated exclusively through appropriately authorized and licensed third-party financial institutions and partner entities in their respective jurisdictions. XDC Network and Contour provide technology infrastructure and do not themselves offer regulated banking or payment services.',
+    'Disclaimer: All banking, payment processing, card issuance, and regulated financial services are facilitated exclusively through appropriately authorized and licensed third-party financial institutions and partner entities in their respective jurisdictions. XDC Network is a decentralized enterprise blockchain protocol provider and does not directly provide banking, deposit-taking, or custodial financial services.',
   ctaEmail: 'santosh@xinfin.org',
-  ctaMailtoSubject: 'Sibos 2026 - Meeting Request (Booth #DIS 43)',
+  ctaMailtoSubject: 'Sibos 2026 - Meeting Request (Booth #DISS 43)',
   ctaMailtoBody:
-    'Hello,\n\nI would like to schedule a meeting with the XDC Network & Contour delegation at Sibos 2026 (Booth #DIS 43).\n\nPreferred times:\n\nThank you.',
+    'Hello,\n\nI would like to schedule a meeting with the XDC Network & Contour delegation at Sibos 2026 (Booth #DISS 43).\n\nPreferred times:\n\nThank you.',
   ctaLinkType: 'mailto',
   ctaLabel: 'Schedule a Meeting',
 };

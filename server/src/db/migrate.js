@@ -56,11 +56,11 @@ CREATE INDEX IF NOT EXISTS idx_email_sends_sent_at ON email_sends(sent_at DESC);
 `;
 
 const DEFAULT_SUBJECT =
-  'Meet XDC Network & Contour at Sibos 2026 (Booth #DIS 43): Real-Time Settlement, Trade Finance & Agentic Payments';
+  'Meet XDC Network & Contour at Sibos 2026 (Booth #DISS 43): Agentic Payments, Trade Finance & Real-Time Settlement';
 
 const DEFAULT_TEXT = `Join XDC Network & Contour at Sibos 2026
 Miami Beach Convention Center | September 28 – October 1, 2026
-Location: Booth #DIS 43
+Location: Booth #DISS 43
 
 Dear Partner,
 
@@ -75,15 +75,14 @@ Core Solutions & Product Lineup
 • Digitized Trade Finance (Contour): Fully paperless Letters of Credit (LCs), electronic documentation, and milestone-based smart contract settlement integrated with ISO 20022 messaging.
 • Autonomous Agentic Commerce (XDC AI): Native HTTP 402 (x402) payment rails and gasless smart accounts enabling autonomous AI agents to initiate, reconcile, and settle expenses, compute, and API services compliantly.
 
-Connect with Leadership at Booth #DIS 43
-Visit us at Booth #DIS 43 or schedule a dedicated 1-on-1 session with our executive delegation to explore institutional pilots, banking integrations, and liquidity partnership opportunities.
+Connect with Leadership at Booth #DISS 43
 
 Schedule a Meeting: santosh@xinfin.org
 
-We look forward to meeting you at Booth #DIS 43 in Miami Beach!
-
 Best regards,
 The XDC Network & Contour Delegation
+
+Disclaimer: All banking, payment processing, card issuance, and regulated financial services are facilitated exclusively through appropriately authorized and licensed third-party financial institutions and partner entities in their respective jurisdictions. XDC Network is a decentralized enterprise blockchain protocol provider and does not directly provide banking, deposit-taking, or custodial financial services.
 `;
 
 async function migrate() {
