@@ -675,6 +675,20 @@ router.post('/sends/import', requireSuperAdmin, async (req, res) => {
   }
 });
 
+/** Delete a send row (superadmin) — used to prune queue duplicates */
+router.delete('/sends/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `DELETE FROM email_sends WHERE id = $1 RETURNING id, recipient_email, status`,
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Send not found' });
+    res.json({ ok: true, deleted: rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /** Send history with filters */
 router.get('/sends', async (req, res) => {
   try {
