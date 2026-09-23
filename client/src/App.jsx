@@ -66,6 +66,20 @@ function recipientCount(raw) {
     .filter(Boolean).length;
 }
 
+/** Extract emails from paste/CSV text (handles email,email or column rows). */
+function extractEmailsFromText(text) {
+  const matches = String(text || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
+  const seen = new Set();
+  const out = [];
+  for (const m of matches) {
+    const e = m.toLowerCase();
+    if (seen.has(e)) continue;
+    seen.add(e);
+    out.push(e);
+  }
+  return out;
+}
+
 function formatTime(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString();
@@ -94,10 +108,14 @@ export default function App() {
 
   const [sends, setSends] = useState([]);
   const [sendsTotal, setSendsTotal] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({});
+  const [historyPage, setHistoryPage] = useState(1);
+  const HISTORY_PAGE_SIZE = 50;
   const [filterQ, setFilterQ] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  const [filterStatus, setFilterStatus] = useState('pending');
   const [selected, setSelected] = useState(new Set());
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [sendingSelected, setSendingSelected] = useState(false);
 
   const [newEvent, setNewEvent] = useState({ name: '', slug: '', location: '', dates: '' });
 
@@ -195,17 +213,28 @@ export default function App() {
   const loadHistory = useCallback(async () => {
     setLoadingHistory(true);
     try {
-      const params = { limit: 100 };
+      const params = {
+        limit: HISTORY_PAGE_SIZE,
+        offset: (historyPage - 1) * HISTORY_PAGE_SIZE,
+      };
       if (filterQ) params.q = filterQ;
       if (filterStatus) params.status = filterStatus;
       const data = await api.sends(params);
       setSends(data.items);
       setSendsTotal(data.total);
+      setStatusCounts(data.statusCounts || {});
+      setSelected(new Set());
     } catch (err) {
       setError(err.message);
     } finally {
       setLoadingHistory(false);
     }
+  }, [filterQ, filterStatus, historyPage]);
+
+  const historyPageCount = Math.max(1, Math.ceil(sendsTotal / HISTORY_PAGE_SIZE));
+
+  useEffect(() => {
+    setHistoryPage(1);
   }, [filterQ, filterStatus]);
 
   useEffect(() => {
@@ -326,16 +355,19 @@ export default function App() {
         });
       }
 
+      const count = recipientCount(recipients);
       const result = await api.send({
         recipients,
         subject,
         html_body: html,
         template_id: templateId,
         event_id: eventId,
+        broadcast: count > 1,
       });
       setSendResult(result);
+      const mode = result.broadcast ? 'broadcast' : 'send';
       setNotice(
-        `Campaign #${result.campaignId}: ${result.success} sent, ${result.failure} failed.`
+        `Campaign #${result.campaignId} (${mode}${result.provider ? ` · ${result.provider}` : ''}): ${result.success} sent, ${result.failure} failed.`
       );
       if (result.quota) setQuota(result.quota);
       if (tab !== 'history') {
@@ -359,9 +391,31 @@ export default function App() {
     }
   }
 
+  async function handleSendSelected() {
+    if (selected.size === 0) return;
+    setError('');
+    setSendingSelected(true);
+    try {
+      const result = await api.sendSelected([...selected]);
+      setNotice(
+        `Sent ${result.success}/${selected.size}` +
+          (result.failure ? `, ${result.failure} failed` : '') +
+          (result.provider ? ` · ${result.provider}` : '')
+      );
+      if (result.quota) setQuota(result.quota);
+      setSelected(new Set());
+      loadHistory();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSendingSelected(false);
+    }
+  }
+
   async function handleBulkResend() {
     if (selected.size === 0) return;
     setError('');
+    setSendingSelected(true);
     try {
       const result = await api.resendBulk([...selected]);
       const ok = result.results.filter((r) => r.status === 'sent').length;
@@ -370,7 +424,29 @@ export default function App() {
       loadHistory();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSendingSelected(false);
     }
+  }
+
+  function toggleSelect(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllPage() {
+    const ids = sends.map((s) => s.id);
+    const allSelected = ids.length > 0 && ids.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
   }
 
   async function createEvent(e) {
@@ -391,15 +467,6 @@ export default function App() {
     } catch (err) {
       setError(err.message);
     }
-  }
-
-  function toggleSelect(id) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   }
 
   if (authChecking) {
@@ -803,15 +870,64 @@ export default function App() {
             </label>
 
             <label>
-              Recipients <span className="hint">(comma, semicolon, or new-line separated)</span>
+              Recipients{' '}
+              <span className="hint">(comma, semicolon, newline, or CSV — upload below)</span>
               <textarea
-                rows={4}
-                placeholder="alice@bank.com, bob@corp.com, ..."
+                rows={6}
+                placeholder="alice@bank.com, bob@corp.com&#10;or paste a column of emails from Excel…"
                 value={recipients}
                 onChange={(e) => setRecipients(e.target.value)}
               />
             </label>
-            <p className="meta-line">{recipientCount(recipients)} recipient(s)</p>
+            <div className="actions" style={{ marginTop: 8, gap: 12, flexWrap: 'wrap' }}>
+              <label className="ghost" style={{ cursor: 'pointer', display: 'inline-block' }}>
+                Upload CSV / TXT
+                <input
+                  type="file"
+                  accept=".csv,.txt,.tsv,text/csv,text/plain"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      const emails = extractEmailsFromText(String(reader.result || ''));
+                      if (emails.length === 0) {
+                        setError('No email addresses found in that file.');
+                        return;
+                      }
+                      setError('');
+                      setRecipients((prev) => {
+                        const merged = extractEmailsFromText(`${prev}\n${emails.join('\n')}`);
+                        return merged.join('\n');
+                      });
+                      setNotice(`Loaded ${emails.length} email(s) from ${file.name}.`);
+                    };
+                    reader.onerror = () => setError('Could not read file.');
+                    reader.readAsText(file);
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                className="ghost"
+                disabled={!recipients.trim()}
+                onClick={() => {
+                  const emails = extractEmailsFromText(recipients);
+                  setRecipients(emails.join('\n'));
+                  setNotice(`Normalized to ${emails.length} unique recipient(s).`);
+                }}
+              >
+                Clean / dedupe list
+              </button>
+            </div>
+            <p className="meta-line">
+              {recipientCount(recipients)} recipient(s)
+              {recipientCount(recipients) > 1
+                ? ' · will send via Postmark broadcast/bulk'
+                : ''}
+            </p>
 
             <div className="actions">
               <button type="button" className="ghost" onClick={refreshPreview}>
@@ -826,7 +942,11 @@ export default function App() {
                 disabled={sending || recipientCount(recipients) === 0}
                 onClick={handleSend}
               >
-                {sending ? 'Sending…' : `Send to ${recipientCount(recipients) || '…'}`}
+                {sending
+                  ? `Sending to ${recipientCount(recipients)}…`
+                  : recipientCount(recipients) > 1
+                    ? `Broadcast to ${recipientCount(recipients)}`
+                    : `Send to ${recipientCount(recipients) || '…'}`}
               </button>
             </div>
 
@@ -836,12 +956,25 @@ export default function App() {
                 <p>
                   Status: <strong>{sendResult.status}</strong> · success {sendResult.success} ·
                   failed {sendResult.failure}
+                  {sendResult.broadcast ? ' · broadcast' : ''}
+                  {sendResult.provider ? ` · ${sendResult.provider}` : ''}
                 </p>
-                {sendResult.invalid?.length > 0 && (
-                  <p className="warn">Invalid skipped: {sendResult.invalid.join(', ')}</p>
+                {sendResult.bulkIds?.length > 0 && (
+                  <p className="meta-line">Bulk ID(s): {sendResult.bulkIds.join(', ')}</p>
+                )}
+                {sendResult.invalidCount > 0 && (
+                  <p className="warn">
+                    Invalid skipped: {sendResult.invalidCount}
+                    {sendResult.invalid?.length
+                      ? ` (e.g. ${sendResult.invalid.slice(0, 5).join(', ')})`
+                      : ''}
+                  </p>
+                )}
+                {sendResult.resultsTruncated && (
+                  <p className="meta-line">Showing a sample of results — full list is in History.</p>
                 )}
                 <ul>
-                  {sendResult.results?.map((r) => (
+                  {sendResult.results?.slice(0, 100).map((r) => (
                     <li key={r.email} className={r.status}>
                       {r.email} — {r.status}
                       {r.error ? `: ${r.error}` : ''}
@@ -866,8 +999,11 @@ export default function App() {
         <main className="history">
           <div className="panel-head row">
             <div>
-              <h2>Send history</h2>
-              <p>{sendsTotal} records · Postgres-backed audit log</p>
+              <h2>Send queue</h2>
+              <p>
+                {sendsTotal} shown filter · pending {statusCounts.pending || 0} · sent{' '}
+                {statusCounts.sent || 0} · failed {statusCounts.failed || 0}
+              </p>
             </div>
             <div className="filters">
               <input
@@ -877,19 +1013,29 @@ export default function App() {
               />
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
                 <option value="">All statuses</option>
+                <option value="pending">Pending</option>
                 <option value="sent">Sent</option>
                 <option value="failed">Failed</option>
-                <option value="pending">Pending</option>
               </select>
               <button className="ghost" onClick={loadHistory} disabled={loadingHistory}>
                 {loadingHistory ? 'Loading…' : 'Refresh'}
               </button>
               <button
                 className="primary"
-                disabled={selected.size === 0}
-                onClick={handleBulkResend}
+                disabled={selected.size === 0 || sendingSelected}
+                onClick={handleSendSelected}
               >
-                Resend selected ({selected.size})
+                {sendingSelected
+                  ? `Sending ${selected.size}…`
+                  : `Send selected (${selected.size})`}
+              </button>
+              <button
+                className="ghost"
+                disabled={selected.size === 0 || sendingSelected}
+                onClick={handleBulkResend}
+                title="Creates new send rows (for already-sent / failed)"
+              >
+                Resend selected
               </button>
             </div>
           </div>
@@ -898,7 +1044,14 @@ export default function App() {
             <table>
               <thead>
                 <tr>
-                  <th></th>
+                  <th>
+                    <input
+                      type="checkbox"
+                      title="Select all on this page"
+                      checked={sends.length > 0 && sends.every((s) => selected.has(s.id))}
+                      onChange={toggleSelectAllPage}
+                    />
+                  </th>
                   <th>ID</th>
                   <th>Recipient</th>
                   <th>Subject</th>
@@ -927,21 +1080,68 @@ export default function App() {
                     <td>{formatTime(s.sent_at || s.created_at)}</td>
                     <td className="ellipsis muted">{s.error_message || '—'}</td>
                     <td>
-                      <button className="ghost small" onClick={() => handleResend(s.id)}>
-                        Resend
-                      </button>
+                      {s.status === 'pending' ? (
+                        <button
+                          className="ghost small"
+                          disabled={sendingSelected}
+                          onClick={async () => {
+                            setSelected(new Set([s.id]));
+                            setSendingSelected(true);
+                            setError('');
+                            try {
+                              const result = await api.sendSelected([s.id]);
+                              setNotice(
+                                result.success
+                                  ? `Sent ${s.recipient_email}`
+                                  : `Failed: ${result.results?.[0]?.error || 'error'}`
+                              );
+                              loadHistory();
+                            } catch (err) {
+                              setError(err.message);
+                            } finally {
+                              setSendingSelected(false);
+                            }
+                          }}
+                        >
+                          Send
+                        </button>
+                      ) : (
+                        <button className="ghost small" onClick={() => handleResend(s.id)}>
+                          Resend
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
                 {sends.length === 0 && (
                   <tr>
                     <td colSpan={8} className="empty">
-                      No sends yet.
+                      No rows for this filter.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div className="pagination">
+            <button
+              className="ghost"
+              disabled={historyPage <= 1 || loadingHistory}
+              onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+            >
+              ← Prev
+            </button>
+            <span className="meta-line">
+              Page {historyPage} of {historyPageCount} · {HISTORY_PAGE_SIZE} / page
+            </span>
+            <button
+              className="ghost"
+              disabled={historyPage >= historyPageCount || loadingHistory}
+              onClick={() => setHistoryPage((p) => p + 1)}
+            >
+              Next →
+            </button>
           </div>
         </main>
       )}

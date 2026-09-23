@@ -20,9 +20,20 @@
 - `INVITE_TTL_DAYS` — optional, default `7`
 - `POSTMARK_SERVER_TOKEN` — Postmark Server API token (HTTPS; required on Railway)
 - `MAIL_PROVIDER` — `postmark` (default when token is set) or `smtp` for local Gmail
-- `POSTMARK_MESSAGE_STREAM` — optional, default `outbound`
-- `SMTP_*` Gmail vars — **not used**; removed in favor of Postmark
+- `POSTMARK_MESSAGE_STREAM` — transactional stream, default `outbound`
+- `POSTMARK_BROADCAST_STREAM` — bulk/marketing stream, default `broadcast` (create in Postmark if missing)
+- `POSTMARK_BULK_CHUNK` — recipients per bulk request (default `500`, max `2000`)
+- `BROADCAST_THRESHOLD` — use bulk/broadcast when recipient count ≥ this (default `2`)
+- `MAX_RECIPIENTS_PER_SEND` — hard cap per campaign (default `10000`)
 - `SMTP_FROM` — From address only (must be a verified Postmark sender)
+
+### Bulk / broadcast sends
+
+1. In Postmark → Message Streams, ensure a **Broadcast** stream exists (default name `broadcast`).
+2. Set `POSTMARK_BROADCAST_STREAM=broadcast` on Railway.
+3. Compose UI: paste emails or **Upload CSV/TXT**; 2+ recipients use Postmark Bulk API (`/email/bulk`), with automatic fallback to `/email/batch` if bulk is unavailable.
+4. Logos in bulk emails use public `APP_URL/logos/…` URLs (set `APP_URL` to the Railway API URL).
+5. Raise per-admin send limits in Users before large campaigns.
 
 ### Auth model
 

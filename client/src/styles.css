@@ -455,6 +455,14 @@ th {
   color: var(--warn);
 }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 0 8px;
+}
+
 .event-list {
   list-style: none;
   margin: 0;

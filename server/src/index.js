@@ -27,7 +27,7 @@ app.use(
     },
   })
 );
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
 app.use('/logos', express.static(path.join(__dirname, '../../public/logos')));
 app.use('/api/auth', auth);
 app.use('/api', api);

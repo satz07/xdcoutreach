@@ -84,6 +84,10 @@ export const api = {
   resend: (id) => request(`/sends/${id}/resend`, { method: 'POST' }),
   resendBulk: (ids) =>
     request('/sends/resend-bulk', { method: 'POST', body: JSON.stringify({ ids }) }),
+  sendSelected: (ids) =>
+    request('/sends/send-selected', { method: 'POST', body: JSON.stringify({ ids }) }),
+  importSends: (body) =>
+    request('/sends/import', { method: 'POST', body: JSON.stringify(body) }),
   campaigns: () => request('/campaigns'),
 };
 

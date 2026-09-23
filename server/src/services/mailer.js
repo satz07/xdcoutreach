@@ -60,7 +60,7 @@ function guessContentType(filename = '') {
   return 'application/octet-stream';
 }
 
-async function sendViaPostmark({ from, to, subject, html, text, attachments }) {
+async function sendViaPostmark({ from, to, subject, html, text, attachments, messageStream }) {
   const token = process.env.POSTMARK_SERVER_TOKEN;
   if (!token) throw new Error('POSTMARK_SERVER_TOKEN not set');
 
@@ -70,7 +70,10 @@ async function sendViaPostmark({ from, to, subject, html, text, attachments }) {
     Subject: subject,
     HtmlBody: html,
     TextBody: text || undefined,
-    MessageStream: process.env.POSTMARK_MESSAGE_STREAM || 'outbound',
+    MessageStream:
+      messageStream ||
+      process.env.POSTMARK_MESSAGE_STREAM ||
+      'outbound',
   };
 
   if (attachments && attachments.length) {
@@ -101,6 +104,225 @@ async function sendViaPostmark({ from, to, subject, html, text, attachments }) {
     rejected: [],
     provider: 'postmark',
   };
+}
+
+function chunkArray(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function htmlWithPublicLogos(html) {
+  const base = (process.env.APP_URL || process.env.FRONTEND_URL || '').replace(/\/$/, '');
+  if (!base) return html;
+  return String(html || '')
+    .replace(/cid:xdc-logo/gi, `${base}/logos/xdc.png`)
+    .replace(/cid:contour-logo/gi, `${base}/logos/contour.png`);
+}
+
+/**
+ * Broadcast the same message to many recipients via Postmark Bulk API
+ * (MessageStream: broadcast). Content+attachments sent once per chunk.
+ * Falls back to /email/batch if bulk is unavailable.
+ */
+async function sendBroadcastEmails({
+  from,
+  subject,
+  html,
+  text,
+  recipients,
+  includeLogos = true,
+}) {
+  const token = process.env.POSTMARK_SERVER_TOKEN;
+  if (!token) throw new Error('POSTMARK_SERVER_TOKEN not set');
+
+  const stream = process.env.POSTMARK_BROADCAST_STREAM || 'broadcast';
+  const chunkSize = Math.min(Number(process.env.POSTMARK_BULK_CHUNK || 500), 2000);
+  const delayMs = Number(process.env.POSTMARK_BULK_DELAY_MS || 250);
+  // Hosted logo URLs keep bulk payloads small (content sent once per chunk)
+  const htmlBody = htmlWithPublicLogos(html);
+
+  const chunks = chunkArray(recipients, chunkSize);
+  const results = [];
+  const bulkIds = [];
+
+  for (let c = 0; c < chunks.length; c += 1) {
+    const chunk = chunks[c];
+    try {
+      const bulkPayload = {
+        From: from,
+        Subject: subject,
+        HtmlBody: htmlBody,
+        TextBody: text || undefined,
+        MessageStream: stream,
+        Messages: chunk.map((to) => ({ To: to })),
+      };
+
+      const res = await fetch('https://api.postmarkapp.com/email/bulk', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-Postmark-Server-Token': token,
+        },
+        body: JSON.stringify(bulkPayload),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && (data.Id || data.ID) && !data.ErrorCode) {
+        const bulkId = data.Id || data.ID;
+        bulkIds.push(bulkId);
+        for (const to of chunk) {
+          results.push({
+            email: to,
+            status: 'sent',
+            messageId: `bulk:${bulkId}`,
+            provider: 'postmark-bulk',
+          });
+        }
+      } else if (
+        data.ErrorCode === 1226 ||
+        /message stream|broadcast|bulk/i.test(data.Message || '') ||
+        res.status === 404 ||
+        res.status === 422
+      ) {
+        console.warn(
+          `Postmark bulk/broadcast unavailable (${data.Message || res.status}); using batch…`
+        );
+        const batchResults = await sendBatchViaPostmark({
+          from,
+          subject,
+          html: htmlBody,
+          text,
+          recipients: chunk,
+          messageStream: stream,
+        });
+        results.push(...batchResults);
+      } else {
+        throw new Error(data.Message || `Postmark bulk failed (${res.status})`);
+      }
+    } catch (err) {
+      try {
+        const batchResults = await sendBatchViaPostmark({
+          from,
+          subject,
+          html: htmlBody,
+          text,
+          recipients: chunk,
+          messageStream: stream,
+        });
+        results.push(...batchResults);
+      } catch (batchErr) {
+        try {
+          const outboundResults = await sendBatchViaPostmark({
+            from,
+            subject,
+            html: htmlBody,
+            text,
+            recipients: chunk,
+            messageStream: process.env.POSTMARK_MESSAGE_STREAM || 'outbound',
+          });
+          results.push(...outboundResults);
+        } catch (outboundErr) {
+          for (const to of chunk) {
+            results.push({
+              email: to,
+              status: 'failed',
+              error: outboundErr.message || batchErr.message || err.message,
+            });
+          }
+        }
+      }
+    }
+
+    if (c < chunks.length - 1 && delayMs > 0) await sleep(delayMs);
+  }
+
+  return {
+    provider: 'postmark-broadcast',
+    bulkIds,
+    results,
+    success: results.filter((r) => r.status === 'sent').length,
+    failure: results.filter((r) => r.status === 'failed').length,
+  };
+}
+
+/** Postmark /email/batch — up to 500 messages per request */
+async function sendBatchViaPostmark({
+  from,
+  subject,
+  html,
+  text,
+  recipients,
+  messageStream,
+  attachments,
+}) {
+  const token = process.env.POSTMARK_SERVER_TOKEN;
+  if (!token) throw new Error('POSTMARK_SERVER_TOKEN not set');
+
+  const stream = messageStream || process.env.POSTMARK_MESSAGE_STREAM || 'outbound';
+  const batchSize = Math.min(Number(process.env.POSTMARK_BATCH_SIZE || 100), 500);
+  const delayMs = Number(process.env.POSTMARK_BULK_DELAY_MS || 200);
+  const chunks = chunkArray(recipients, batchSize);
+  const results = [];
+
+  for (let i = 0; i < chunks.length; i += 1) {
+    const chunk = chunks[i];
+    const payload = chunk.map((to) => {
+      const msg = {
+        From: from,
+        To: to,
+        Subject: subject,
+        HtmlBody: html,
+        TextBody: text || undefined,
+        MessageStream: stream,
+      };
+      if (attachments?.length) msg.Attachments = attachments;
+      return msg;
+    });
+
+    const res = await fetch('https://api.postmarkapp.com/email/batch', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Postmark-Server-Token': token,
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok && !Array.isArray(data)) {
+      throw new Error(data.Message || `Postmark batch failed (${res.status})`);
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    for (let j = 0; j < chunk.length; j += 1) {
+      const row = rows[j] || {};
+      if (row.ErrorCode === 0 || row.MessageID) {
+        results.push({
+          email: chunk[j],
+          status: 'sent',
+          messageId: row.MessageID,
+          provider: 'postmark-batch',
+        });
+      } else {
+        results.push({
+          email: chunk[j],
+          status: 'failed',
+          error: row.Message || `Error ${row.ErrorCode || res.status}`,
+        });
+      }
+    }
+
+    if (i < chunks.length - 1 && delayMs > 0) await sleep(delayMs);
+  }
+
+  return results;
 }
 
 function usePostmark() {
@@ -292,6 +514,50 @@ async function sendOneEmail({ to, subject, html, text, includeLogos = true, from
   };
 }
 
+async function sendCampaignEmails({
+  recipients,
+  subject,
+  html,
+  text,
+  fromName,
+  broadcast = false,
+}) {
+  const fromAddr = process.env.SMTP_FROM || process.env.OTP_EMAIL_FROM || process.env.SMTP_USER;
+  const name = fromName || 'XDC Network & Contour';
+  const from = `"${name}" <${fromAddr}>`;
+  const list = Array.isArray(recipients) ? recipients : [];
+  const threshold = Number(process.env.BROADCAST_THRESHOLD || 2);
+  const useBroadcast = broadcast || list.length >= threshold;
+
+  if (useBroadcast && list.length > 1 && process.env.POSTMARK_SERVER_TOKEN) {
+    return sendBroadcastEmails({
+      from,
+      subject,
+      html,
+      text,
+      recipients: list,
+      includeLogos: true,
+    });
+  }
+
+  const results = [];
+  for (const to of list) {
+    try {
+      const info = await sendOneEmail({ to, subject, html, text, includeLogos: true, fromName });
+      results.push({ email: to, status: 'sent', messageId: info.messageId, provider: info.provider });
+    } catch (err) {
+      results.push({ email: to, status: 'failed', error: err.message });
+    }
+  }
+  return {
+    provider: 'postmark',
+    bulkIds: [],
+    results,
+    success: results.filter((r) => r.status === 'sent').length,
+    failure: results.filter((r) => r.status === 'failed').length,
+  };
+}
+
 function parseRecipients(raw) {
   if (!raw) return [];
   const list = String(raw)
@@ -320,6 +586,8 @@ function parseRecipients(raw) {
 module.exports = {
   getTransporter,
   sendOneEmail,
+  sendCampaignEmails,
+  sendBroadcastEmails,
   parseRecipients,
   resolveLogoAttachments,
   logoAttachments,
