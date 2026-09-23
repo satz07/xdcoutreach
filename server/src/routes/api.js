@@ -684,15 +684,15 @@ router.get('/sends', async (req, res) => {
 
     if (q) {
       params.push(`%${q}%`);
-      clauses.push(`recipient_email ILIKE $${params.length}`);
+      clauses.push(`s.recipient_email ILIKE $${params.length}`);
     }
     if (status) {
       params.push(status);
-      clauses.push(`status = $${params.length}`);
+      clauses.push(`s.status = $${params.length}`);
     }
     if (campaignId) {
       params.push(campaignId);
-      clauses.push(`campaign_id = $${params.length}`);
+      clauses.push(`s.campaign_id = $${params.length}`);
     }
 
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
