@@ -559,7 +559,7 @@ async function sendCampaignEmails({
 }
 
 function parseRecipients(raw) {
-  if (!raw) return [];
+  if (!raw) return { valid: [], invalid: [] };
   const list = String(raw)
     .split(/[,;\n]+/)
     .map((e) => e.trim().toLowerCase())
