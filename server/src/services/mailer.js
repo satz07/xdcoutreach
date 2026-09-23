@@ -171,10 +171,13 @@ async function diagnoseSmtp() {
 }
 
 /**
- * Prefer Postmark HTTPS when configured; else SMTP with IPv4 + 465 fallback (local).
+ * Postmark HTTPS only when MAIL_PROVIDER=postmark (default with token).
+ * SMTP is disabled unless MAIL_PROVIDER=smtp explicitly.
  */
 async function sendMailWithFallback(mailOptions) {
-  if (usePostmark()) {
+  const provider = (process.env.MAIL_PROVIDER || 'postmark').toLowerCase();
+
+  if (provider === 'postmark' || (provider !== 'smtp' && process.env.POSTMARK_SERVER_TOKEN)) {
     return sendViaPostmark({
       from: mailOptions.from,
       to: mailOptions.to,
@@ -183,6 +186,10 @@ async function sendMailWithFallback(mailOptions) {
       text: mailOptions.text,
       attachments: mailOptions.attachments,
     });
+  }
+
+  if (provider !== 'smtp') {
+    throw new Error('Mail not configured. Set MAIL_PROVIDER=postmark and POSTMARK_SERVER_TOKEN.');
   }
 
   const transporter = getTransporter();
@@ -196,17 +203,6 @@ async function sendMailWithFallback(mailOptions) {
       /timeout|connect/i.test(err.message || '');
 
     if (!isConnectTimeout || port === 465 || process.env.SMTP_NO_FALLBACK === 'true') {
-      if (isConnectTimeout && process.env.POSTMARK_SERVER_TOKEN) {
-        console.warn(`SMTP failed (${err.message}); falling back to Postmark HTTPS…`);
-        return sendViaPostmark({
-          from: mailOptions.from,
-          to: mailOptions.to,
-          subject: mailOptions.subject,
-          html: mailOptions.html,
-          text: mailOptions.text,
-          attachments: mailOptions.attachments,
-        });
-      }
       throw err;
     }
 

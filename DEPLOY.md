@@ -21,7 +21,8 @@
 - `POSTMARK_SERVER_TOKEN` — Postmark Server API token (HTTPS; required on Railway)
 - `MAIL_PROVIDER` — `postmark` (default when token is set) or `smtp` for local Gmail
 - `POSTMARK_MESSAGE_STREAM` — optional, default `outbound`
-- `SMTP_FROM` — must be a verified Postmark sender (e.g. `support@xdcforpayments.org`)
+- `SMTP_*` Gmail vars — **not used**; removed in favor of Postmark
+- `SMTP_FROM` — From address only (must be a verified Postmark sender)
 
 ### Auth model
 
