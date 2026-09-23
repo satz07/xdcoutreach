@@ -616,6 +616,8 @@ router.post('/sends/import', requireSuperAdmin, async (req, res) => {
     if (clear) {
       // Wipe queue and reset SERIAL ids so History starts at 1 again
       await client.query('TRUNCATE TABLE email_sends, email_campaigns RESTART IDENTITY CASCADE');
+      await client.query(`ALTER SEQUENCE IF EXISTS email_sends_id_seq RESTART WITH 1`);
+      await client.query(`ALTER SEQUENCE IF EXISTS email_campaigns_id_seq RESTART WITH 1`);
     }
 
     const campaign = await client.query(
