@@ -51,52 +51,6 @@ function getTransporter(overrides = {}) {
   return nodemailer.createTransport(smtpBaseOptions(overrides));
 }
 
-async function sendViaResend({ from, to, subject, html, text, attachments }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error('RESEND_API_KEY not set');
-
-  const payload = {
-    from,
-    to: [to],
-    subject,
-    html,
-    text: text || undefined,
-  };
-
-  // Resend inline attachments (optional; campaign logos)
-  if (attachments && attachments.length) {
-    payload.attachments = await Promise.all(
-      attachments.map(async (a) => {
-        const content = fs.readFileSync(a.path).toString('base64');
-        return {
-          filename: a.filename,
-          content,
-          content_id: a.cid,
-        };
-      })
-    );
-  }
-
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.message || data.error || `Resend failed (${res.status})`);
-  }
-  return {
-    messageId: data.id,
-    accepted: [to],
-    rejected: [],
-    provider: 'resend',
-  };
-}
-
 function guessContentType(filename = '') {
   const lower = filename.toLowerCase();
   if (lower.endsWith('.png')) return 'image/png';
@@ -149,26 +103,10 @@ async function sendViaPostmark({ from, to, subject, html, text, attachments }) {
   };
 }
 
-function resolveHttpProvider() {
+function usePostmark() {
   const provider = (process.env.MAIL_PROVIDER || '').toLowerCase();
-  if (provider === 'postmark' && process.env.POSTMARK_SERVER_TOKEN) return 'postmark';
-  if (provider === 'resend' && process.env.RESEND_API_KEY) return 'resend';
-  if (!provider) {
-    if (process.env.POSTMARK_SERVER_TOKEN) return 'postmark';
-    if (process.env.RESEND_API_KEY) return 'resend';
-  }
-  return null;
-}
-
-async function sendViaHttpProvider(mailOptions) {
-  const provider = resolveHttpProvider();
-  if (provider === 'postmark') {
-    return sendViaPostmark(mailOptions);
-  }
-  if (provider === 'resend') {
-    return sendViaResend(mailOptions);
-  }
-  return null;
+  if (!process.env.POSTMARK_SERVER_TOKEN) return false;
+  return !provider || provider === 'postmark';
 }
 
 /**
@@ -219,7 +157,6 @@ async function diagnoseSmtp() {
   const probes = await Promise.all([
     probeHost(host, 465, true),
     probeHost(host, 587, false),
-    probeHost('api.resend.com', 443, true),
     probeHost('api.postmarkapp.com', 443, true),
   ]);
   return {
@@ -227,29 +164,26 @@ async function diagnoseSmtp() {
     smtpPort: process.env.SMTP_PORT,
     smtpSecure: process.env.SMTP_SECURE,
     smtpUser: process.env.SMTP_USER ? 'set' : 'missing',
-    resendKey: process.env.RESEND_API_KEY ? 'set' : 'missing',
     postmarkToken: process.env.POSTMARK_SERVER_TOKEN ? 'set' : 'missing',
-    mailProvider:
-      process.env.MAIL_PROVIDER ||
-      resolveHttpProvider() ||
-      'smtp',
+    mailProvider: process.env.MAIL_PROVIDER || (usePostmark() ? 'postmark' : 'smtp'),
     probes,
   };
 }
 
 /**
- * Prefer Postmark/Resend HTTPS when configured; else SMTP with IPv4 + 465 fallback.
+ * Prefer Postmark HTTPS when configured; else SMTP with IPv4 + 465 fallback (local).
  */
 async function sendMailWithFallback(mailOptions) {
-  const viaHttp = await sendViaHttpProvider({
-    from: mailOptions.from,
-    to: mailOptions.to,
-    subject: mailOptions.subject,
-    html: mailOptions.html,
-    text: mailOptions.text,
-    attachments: mailOptions.attachments,
-  });
-  if (viaHttp) return viaHttp;
+  if (usePostmark()) {
+    return sendViaPostmark({
+      from: mailOptions.from,
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+      html: mailOptions.html,
+      text: mailOptions.text,
+      attachments: mailOptions.attachments,
+    });
+  }
 
   const transporter = getTransporter();
   try {
@@ -265,17 +199,6 @@ async function sendMailWithFallback(mailOptions) {
       if (isConnectTimeout && process.env.POSTMARK_SERVER_TOKEN) {
         console.warn(`SMTP failed (${err.message}); falling back to Postmark HTTPS…`);
         return sendViaPostmark({
-          from: mailOptions.from,
-          to: mailOptions.to,
-          subject: mailOptions.subject,
-          html: mailOptions.html,
-          text: mailOptions.text,
-          attachments: mailOptions.attachments,
-        });
-      }
-      if (isConnectTimeout && process.env.RESEND_API_KEY) {
-        console.warn(`SMTP failed (${err.message}); falling back to Resend HTTPS…`);
-        return sendViaResend({
           from: mailOptions.from,
           to: mailOptions.to,
           subject: mailOptions.subject,
@@ -354,7 +277,6 @@ function resolveLogoAttachments() {
 async function sendOneEmail({ to, subject, html, text, includeLogos = true, fromName }) {
   const fromAddr = process.env.SMTP_FROM || process.env.OTP_EMAIL_FROM || process.env.SMTP_USER;
   const name = fromName || 'XDC Network & Contour';
-  // Resend requires "Name <email@domain>"
   const from = `"${name}" <${fromAddr}>`;
 
   const info = await sendMailWithFallback({
