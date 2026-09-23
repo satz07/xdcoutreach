@@ -18,7 +18,7 @@ function escapeHtml(str = '') {
  * - gmail: browser Gmail compose (desktop / web)
  */
 function buildMeetingLink({ email, subject, body, type = 'mailto' }) {
-  const to = (email || 'santosh@xinfin.org').trim();
+  const to = (email || 'support@xdcforpayments.org').trim();
   const su = subject || '';
   const bd = body || '';
 
@@ -116,7 +116,7 @@ function buildSibosEmailHtml(overrides = {}) {
     closing = '',
     signOff = 'Best regards,\nThe XDC Network & Contour Delegation',
     disclaimer = `Disclaimer: All banking, payment processing, card issuance, and regulated financial services are facilitated exclusively through appropriately authorized and licensed third-party financial institutions and partner entities in their respective jurisdictions. XDC Network is a decentralized enterprise blockchain protocol provider and does not directly provide banking, deposit-taking, or custodial financial services.`,
-    ctaEmail = 'santosh@xinfin.org',
+    ctaEmail = 'support@xdcforpayments.org',
     ctaMailtoSubject = 'Sibos 2026 - Meeting Request (Booth #DISS 43)',
     ctaMailtoBody =
       'Hello,\n\nI would like to schedule a meeting with the XDC Network & Contour delegation at Sibos 2026 (Booth #DISS 43).\n\nPreferred times:\n\nThank you.',

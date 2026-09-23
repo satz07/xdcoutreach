@@ -77,7 +77,7 @@ Core Solutions & Product Lineup
 
 Connect with Leadership at Booth #DISS 43
 
-Schedule a Meeting: santosh@xinfin.org
+Schedule a Meeting: support@xdcforpayments.org
 
 Best regards,
 The XDC Network & Contour Delegation

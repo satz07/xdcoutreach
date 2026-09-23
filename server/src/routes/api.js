@@ -691,6 +691,48 @@ router.delete('/sends/:id', requireSuperAdmin, async (req, res) => {
   }
 });
 
+/**
+ * Push latest template subject/html onto all pending queue rows.
+ * Fixes "I saved the template but History still sends the old body".
+ */
+router.post('/sends/sync-pending', async (req, res) => {
+  try {
+    let { subject, html_body, template_id } = req.body || {};
+
+    if (!subject || !html_body) {
+      const t = template_id
+        ? await pool.query(`SELECT * FROM email_templates WHERE id = $1`, [template_id])
+        : await pool.query(
+            `SELECT * FROM email_templates WHERE is_default = TRUE ORDER BY updated_at DESC LIMIT 1`
+          );
+      if (!t.rows[0]) {
+        return res.status(400).json({ error: 'No template found to sync from' });
+      }
+      subject = subject || t.rows[0].subject;
+      html_body = html_body || t.rows[0].html_body;
+    }
+
+    const { rowCount } = await pool.query(
+      `UPDATE email_sends
+       SET subject = $1, html_body = $2
+       WHERE status = 'pending'`,
+      [subject, html_body]
+    );
+
+    // Keep campaign draft in sync too
+    await pool.query(
+      `UPDATE email_campaigns
+       SET subject = $1, html_body = $2
+       WHERE status = 'pending'`,
+      [subject, html_body]
+    );
+
+    res.json({ ok: true, updated: rowCount, subject });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /** Send history with filters */
 router.get('/sends', async (req, res) => {
   try {

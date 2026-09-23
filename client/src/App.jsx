@@ -37,7 +37,7 @@ const DEFAULT_CONTENT = {
   signOff: 'Best regards,\nThe XDC Network & Contour Delegation',
   disclaimer:
     'Disclaimer: All banking, payment processing, card issuance, and regulated financial services are facilitated exclusively through appropriately authorized and licensed third-party financial institutions and partner entities in their respective jurisdictions. XDC Network is a decentralized enterprise blockchain protocol provider and does not directly provide banking, deposit-taking, or custodial financial services.',
-  ctaEmail: 'santosh@xinfin.org',
+  ctaEmail: 'support@xdcforpayments.org',
   ctaMailtoSubject: 'Sibos 2026 - Meeting Request (Booth #DISS 43)',
   ctaMailtoBody:
     'Hello,\n\nI would like to schedule a meeting with the XDC Network & Contour delegation at Sibos 2026 (Booth #DISS 43).\n\nPreferred times:\n\nThank you.',
@@ -324,7 +324,15 @@ export default function App() {
         rebuildDefault: false,
         name: content.headline.slice(0, 80),
       });
-      setNotice('Template saved. Future sends will use this content.');
+      // Pending History rows store their own html copy — keep them in sync
+      const sync = await api.syncPending({
+        subject,
+        html_body: html,
+        template_id: templateId,
+      });
+      setNotice(
+        `Template saved. Updated ${sync.updated || 0} pending History row(s) to match.`
+      );
       const tm = await api.templates();
       setTemplates(tm);
     } catch (err) {
@@ -808,7 +816,7 @@ export default function App() {
                 Schedule meeting email (To)
                 <input
                   type="email"
-                  placeholder="santosh@xinfin.org"
+                  placeholder="support@xdcforpayments.org"
                   value={content.ctaEmail}
                   onChange={(e) => updateField('ctaEmail', e.target.value)}
                 />
