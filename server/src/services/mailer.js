@@ -97,6 +97,80 @@ async function sendViaResend({ from, to, subject, html, text, attachments }) {
   };
 }
 
+function guessContentType(filename = '') {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  if (lower.endsWith('.svg')) return 'image/svg+xml';
+  return 'application/octet-stream';
+}
+
+async function sendViaPostmark({ from, to, subject, html, text, attachments }) {
+  const token = process.env.POSTMARK_SERVER_TOKEN;
+  if (!token) throw new Error('POSTMARK_SERVER_TOKEN not set');
+
+  const payload = {
+    From: from,
+    To: to,
+    Subject: subject,
+    HtmlBody: html,
+    TextBody: text || undefined,
+    MessageStream: process.env.POSTMARK_MESSAGE_STREAM || 'outbound',
+  };
+
+  if (attachments && attachments.length) {
+    payload.Attachments = attachments.map((a) => ({
+      Name: a.filename,
+      Content: fs.readFileSync(a.path).toString('base64'),
+      ContentType: guessContentType(a.filename),
+      ContentID: a.cid ? `cid:${a.cid}` : undefined,
+    }));
+  }
+
+  const res = await fetch('https://api.postmarkapp.com/email', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-Postmark-Server-Token': token,
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ErrorCode) {
+    throw new Error(data.Message || `Postmark failed (${res.status})`);
+  }
+  return {
+    messageId: data.MessageID,
+    accepted: [to],
+    rejected: [],
+    provider: 'postmark',
+  };
+}
+
+function resolveHttpProvider() {
+  const provider = (process.env.MAIL_PROVIDER || '').toLowerCase();
+  if (provider === 'postmark' && process.env.POSTMARK_SERVER_TOKEN) return 'postmark';
+  if (provider === 'resend' && process.env.RESEND_API_KEY) return 'resend';
+  if (!provider) {
+    if (process.env.POSTMARK_SERVER_TOKEN) return 'postmark';
+    if (process.env.RESEND_API_KEY) return 'resend';
+  }
+  return null;
+}
+
+async function sendViaHttpProvider(mailOptions) {
+  const provider = resolveHttpProvider();
+  if (provider === 'postmark') {
+    return sendViaPostmark(mailOptions);
+  }
+  if (provider === 'resend') {
+    return sendViaResend(mailOptions);
+  }
+  return null;
+}
+
 /**
  * Probe TCP/TLS reachability (used by /api/health/smtp).
  */
@@ -146,6 +220,7 @@ async function diagnoseSmtp() {
     probeHost(host, 465, true),
     probeHost(host, 587, false),
     probeHost('api.resend.com', 443, true),
+    probeHost('api.postmarkapp.com', 443, true),
   ]);
   return {
     smtpHost: host,
@@ -153,28 +228,28 @@ async function diagnoseSmtp() {
     smtpSecure: process.env.SMTP_SECURE,
     smtpUser: process.env.SMTP_USER ? 'set' : 'missing',
     resendKey: process.env.RESEND_API_KEY ? 'set' : 'missing',
-    mailProvider: process.env.MAIL_PROVIDER || (process.env.RESEND_API_KEY ? 'resend' : 'smtp'),
+    postmarkToken: process.env.POSTMARK_SERVER_TOKEN ? 'set' : 'missing',
+    mailProvider:
+      process.env.MAIL_PROVIDER ||
+      resolveHttpProvider() ||
+      'smtp',
     probes,
   };
 }
 
 /**
- * Send with Resend (HTTPS) when configured, else SMTP with IPv4 + 465 fallback.
+ * Prefer Postmark/Resend HTTPS when configured; else SMTP with IPv4 + 465 fallback.
  */
 async function sendMailWithFallback(mailOptions) {
-  const provider = (process.env.MAIL_PROVIDER || '').toLowerCase();
-  const preferResend = provider === 'resend' || (!provider && process.env.RESEND_API_KEY);
-
-  if (preferResend && process.env.RESEND_API_KEY) {
-    return sendViaResend({
-      from: mailOptions.from,
-      to: mailOptions.to,
-      subject: mailOptions.subject,
-      html: mailOptions.html,
-      text: mailOptions.text,
-      attachments: mailOptions.attachments,
-    });
-  }
+  const viaHttp = await sendViaHttpProvider({
+    from: mailOptions.from,
+    to: mailOptions.to,
+    subject: mailOptions.subject,
+    html: mailOptions.html,
+    text: mailOptions.text,
+    attachments: mailOptions.attachments,
+  });
+  if (viaHttp) return viaHttp;
 
   const transporter = getTransporter();
   try {
@@ -187,8 +262,18 @@ async function sendMailWithFallback(mailOptions) {
       /timeout|connect/i.test(err.message || '');
 
     if (!isConnectTimeout || port === 465 || process.env.SMTP_NO_FALLBACK === 'true') {
-      // Last resort: Resend if key exists even when provider=smtp
-      if (process.env.RESEND_API_KEY && isConnectTimeout) {
+      if (isConnectTimeout && process.env.POSTMARK_SERVER_TOKEN) {
+        console.warn(`SMTP failed (${err.message}); falling back to Postmark HTTPS…`);
+        return sendViaPostmark({
+          from: mailOptions.from,
+          to: mailOptions.to,
+          subject: mailOptions.subject,
+          html: mailOptions.html,
+          text: mailOptions.text,
+          attachments: mailOptions.attachments,
+        });
+      }
+      if (isConnectTimeout && process.env.RESEND_API_KEY) {
         console.warn(`SMTP failed (${err.message}); falling back to Resend HTTPS…`);
         return sendViaResend({
           from: mailOptions.from,
@@ -202,7 +287,9 @@ async function sendMailWithFallback(mailOptions) {
       throw err;
     }
 
-    console.warn(`SMTP ${port} failed (${err.message}); retrying ${process.env.SMTP_HOST || 'smtp.gmail.com'}:465 SSL…`);
+    console.warn(
+      `SMTP ${port} failed (${err.message}); retrying ${process.env.SMTP_HOST || 'smtp.gmail.com'}:465 SSL…`
+    );
     const fallback = getTransporter({ port: 465, secure: true });
     return fallback.sendMail(mailOptions);
   }

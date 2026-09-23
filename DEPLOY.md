@@ -18,7 +18,11 @@
 - `SUPERADMIN_EMAIL` — default `satheesh@xinfin.org`
 - `SUPERADMIN_PASSWORD` — initial / reset password for the superadmin
 - `INVITE_TTL_DAYS` — optional, default `7`
-- `RESEND_API_KEY` — optional; use if Gmail SMTP is blocked (Railway)
+- `RESEND_API_KEY` — optional HTTPS provider
+- `POSTMARK_SERVER_TOKEN` — optional HTTPS provider (Postmark Server API token)
+- `MAIL_PROVIDER` — `postmark` | `resend` | `smtp` (auto-picks postmark/resend if token/key is set)
+- `POSTMARK_MESSAGE_STREAM` — optional, default `outbound`
+- `SMTP_FROM` — must match a verified sender/domain on Postmark or Resend
 
 ### Auth model
 
