@@ -614,8 +614,8 @@ router.post('/sends/import', requireSuperAdmin, async (req, res) => {
     await client.query('BEGIN');
 
     if (clear) {
-      await client.query('DELETE FROM email_sends');
-      await client.query('DELETE FROM email_campaigns');
+      // Wipe queue and reset SERIAL ids so History starts at 1 again
+      await client.query('TRUNCATE TABLE email_sends, email_campaigns RESTART IDENTITY CASCADE');
     }
 
     const campaign = await client.query(

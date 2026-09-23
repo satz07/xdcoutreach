@@ -108,8 +108,7 @@ async function main() {
     const senderId = user.rows[0]?.id || null;
 
     await client.query('BEGIN');
-    await client.query('DELETE FROM email_sends');
-    await client.query('DELETE FROM email_campaigns');
+    await client.query('TRUNCATE TABLE email_sends, email_campaigns RESTART IDENTITY CASCADE');
 
     const campaign = await client.query(
       `INSERT INTO email_campaigns
