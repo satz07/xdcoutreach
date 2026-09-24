@@ -1068,9 +1068,13 @@ export default function App() {
               </button>
               <button
                 className={autoSend?.enabled ? 'danger' : 'primary'}
-                disabled={autoSendBusy}
+                disabled={autoSendBusy || !isSuperAdmin}
                 onClick={handleAutoSendToggle}
-                title="Send next 20 pending emails every minute, in ID order"
+                title={
+                  isSuperAdmin
+                    ? 'Send next 20 pending emails every minute on the server (runs without keeping this page open)'
+                    : 'Superadmin only'
+                }
               >
                 {autoSendBusy
                   ? '…'

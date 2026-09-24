@@ -743,7 +743,7 @@ router.get('/sends/auto', async (_req, res) => {
   }
 });
 
-router.post('/sends/auto/start', async (req, res) => {
+router.post('/sends/auto/start', requireSuperAdmin, async (req, res) => {
   try {
     const { startAutoSend, getStatus } = require('../services/autoSender');
     await startAutoSend(req.user?.id || null);
@@ -754,7 +754,7 @@ router.post('/sends/auto/start', async (req, res) => {
   }
 });
 
-router.post('/sends/auto/stop', async (_req, res) => {
+router.post('/sends/auto/stop', requireSuperAdmin, async (_req, res) => {
   try {
     const { stopAutoSend } = require('../services/autoSender');
     const status = await stopAutoSend();

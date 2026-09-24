@@ -88,7 +88,7 @@ export default function LoginScreen({ onAuthenticated, inviteToken }) {
         <p className="auth-sub">
           {mode === 'invite'
             ? 'Activate your invited admin account to start using the platform.'
-            : 'Only invited emails can access. Sign in with your email and password.'}
+            : 'Protected login — only invited accounts can access. Sign in with email and password.'}
         </p>
 
         {error && <div className="banner error">{error}</div>}
@@ -128,11 +128,12 @@ export default function LoginScreen({ onAuthenticated, inviteToken }) {
         ) : (
           <form onSubmit={handleLogin} className="auth-form">
             <label>
-              Work email
+              Email (username)
               <input
                 type="email"
                 required
                 autoFocus
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@company.com"
@@ -143,8 +144,10 @@ export default function LoginScreen({ onAuthenticated, inviteToken }) {
               <input
                 type="password"
                 required
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="Your password"
               />
             </label>
             <button type="submit" className="primary" disabled={busy}>
