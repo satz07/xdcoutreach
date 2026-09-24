@@ -29,12 +29,13 @@
 - `AUTO_SEND_INTERVAL_MS` — ms between ticks (default `60000` = 1 min)
 - `SMTP_FROM` — From address only (must be a verified Postmark sender)
 
-### Auto-send (20/min)
+### Auto-send (verified outbound)
 
-1. History tab → **Start auto-send (20/min)** (any logged-in admin).
-2. Server claims next 20 `pending` rows by ID, sends via Postmark, marks `sent`/`failed`.
+1. History tab → **Start verified auto-send** (any logged-in admin).
+2. Server claims next N `pending` rows, sends **one-by-one** on Postmark **outbound** (transactional), and only marks `sent` after Activity confirms the MessageID.
 3. State persists in `app_settings` and resumes after Railway restarts if left running.
-4. **Stop auto-send** halts the timer immediately (in-flight batch still finishes).
+4. **Stop verified auto-send** halts the timer immediately (in-flight batch still finishes).
+5. **Send selected verified** does the same for a manual selection (up to 50). **Broadcast selected** keeps the old bulk/broadcast path for later.
 
 ### Bulk / broadcast sends
 

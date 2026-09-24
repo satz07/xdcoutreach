@@ -737,14 +737,14 @@ router.post('/sends/sync-pending', async (req, res) => {
  * Send selected pending rows one-by-one on transactional (outbound) stream,
  * and only mark sent after Postmark Activity confirms the MessageID.
  */
-router.post('/sends/send-verified', requireSuperAdmin, async (req, res) => {
+router.post('/sends/send-verified', async (req, res) => {
   try {
     const { ids } = req.body || {};
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'ids array required' });
     }
-    if (ids.length > 20) {
-      return res.status(400).json({ error: 'Max 20 ids per verified send' });
+    if (ids.length > 50) {
+      return res.status(400).json({ error: 'Max 50 ids per verified send' });
     }
 
     const { rows } = await pool.query(
@@ -826,22 +826,26 @@ router.get('/sends/auto', async (_req, res) => {
   }
 });
 
-router.post('/sends/auto/start', requireSuperAdmin, async (req, res) => {
+router.post('/sends/auto/start', async (req, res) => {
   try {
     const { startAutoSend, getStatus } = require('../services/autoSender');
     await startAutoSend(req.user?.id || null);
     const status = await getStatus();
-    res.json({ ok: true, message: `Auto-send started: ${status.batchSize}/min`, ...status });
+    res.json({
+      ok: true,
+      message: `Verified auto-send started: ${status.batchSize}/min (outbound, Postmark-confirmed)`,
+      ...status,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-router.post('/sends/auto/stop', requireSuperAdmin, async (_req, res) => {
+router.post('/sends/auto/stop', async (_req, res) => {
   try {
     const { stopAutoSend } = require('../services/autoSender');
     const status = await stopAutoSend();
-    res.json({ ok: true, message: 'Auto-send stopped', ...status });
+    res.json({ ok: true, message: 'Verified auto-send stopped', ...status });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

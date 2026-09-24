@@ -86,6 +86,9 @@ export const api = {
     request('/sends/resend-bulk', { method: 'POST', body: JSON.stringify({ ids }) }),
   sendSelected: (ids) =>
     request('/sends/send-selected', { method: 'POST', body: JSON.stringify({ ids }) }),
+  /** One-by-one transactional; marks sent only after Postmark Activity confirms */
+  sendVerified: (ids) =>
+    request('/sends/send-verified', { method: 'POST', body: JSON.stringify({ ids }) }),
   syncPending: (body = {}) =>
     request('/sends/sync-pending', { method: 'POST', body: JSON.stringify(body) }),
   importSends: (body) =>

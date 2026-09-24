@@ -116,6 +116,7 @@ export default function App() {
   const [selected, setSelected] = useState(new Set());
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [sendingSelected, setSendingSelected] = useState(false);
+  const [sendingVerified, setSendingVerified] = useState(false);
   const [autoSend, setAutoSend] = useState(null);
   const [autoSendBusy, setAutoSendBusy] = useState(false);
 
@@ -443,7 +444,7 @@ export default function App() {
     try {
       const result = await api.sendSelected([...selected]);
       setNotice(
-        `Sent ${result.success}/${selected.size}` +
+        `Broadcast ${result.success}/${selected.size}` +
           (result.failure ? `, ${result.failure} failed` : '') +
           (result.provider ? ` · ${result.provider}` : '')
       );
@@ -454,6 +455,40 @@ export default function App() {
       setError(err.message);
     } finally {
       setSendingSelected(false);
+    }
+  }
+
+  /** Transactional 1-by-1; marks sent only after Postmark Activity confirms */
+  async function handleSendVerifiedSelected() {
+    if (selected.size === 0) return;
+    setError('');
+    setSendingVerified(true);
+    const ids = [...selected];
+    const CHUNK = 50;
+    let success = 0;
+    let failure = 0;
+    try {
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const chunk = ids.slice(i, i + CHUNK);
+        setNotice(
+          `Verified send ${Math.min(i + CHUNK, ids.length)}/${ids.length}… (Postmark confirm)`
+        );
+        const result = await api.sendVerified(chunk);
+        success += result.success || 0;
+        failure += result.failure || 0;
+        loadHistory();
+        loadAutoSend();
+      }
+      setNotice(
+        `Verified outbound: ${success} sent (Postmark-confirmed)` +
+          (failure ? `, ${failure} failed/retry` : '')
+      );
+      setSelected(new Set());
+      loadHistory();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSendingVerified(false);
     }
   }
 
@@ -1068,32 +1103,39 @@ export default function App() {
               </button>
               <button
                 className={autoSend?.enabled ? 'danger' : 'primary'}
-                disabled={autoSendBusy || !isSuperAdmin}
+                disabled={autoSendBusy || sendingVerified}
                 onClick={handleAutoSendToggle}
-                title={
-                  isSuperAdmin
-                    ? 'Send next 20 pending emails every minute on the server (runs without keeping this page open)'
-                    : 'Superadmin only'
-                }
+                title="Queue: transactional outbound 1-by-1. Marks sent only after Postmark Activity confirms. Start/stop anytime — runs on server."
               >
                 {autoSendBusy
                   ? '…'
                   : autoSend?.enabled
-                    ? 'Stop auto-send (verified outbound)'
-                    : 'Start auto-send (verified outbound)'}
+                    ? 'Stop verified auto-send'
+                    : 'Start verified auto-send'}
               </button>
               <button
                 className="primary"
-                disabled={selected.size === 0 || sendingSelected}
-                onClick={handleSendSelected}
+                disabled={selected.size === 0 || sendingSelected || sendingVerified || autoSend?.enabled}
+                onClick={handleSendVerifiedSelected}
+                title="Send selected now, one-by-one on transactional stream. Marks sent only after Postmark confirms."
               >
-                {sendingSelected
-                  ? `Sending ${selected.size}…`
-                  : `Send selected (${selected.size})`}
+                {sendingVerified
+                  ? `Verifying ${selected.size}…`
+                  : `Send selected verified (${selected.size})`}
               </button>
               <button
                 className="ghost"
-                disabled={selected.size === 0 || sendingSelected}
+                disabled={selected.size === 0 || sendingSelected || sendingVerified}
+                onClick={handleSendSelected}
+                title="Broadcast/bulk stream (keep for later once Bulk API is approved)"
+              >
+                {sendingSelected
+                  ? `Broadcasting ${selected.size}…`
+                  : `Broadcast selected (${selected.size})`}
+              </button>
+              <button
+                className="ghost"
+                disabled={selected.size === 0 || sendingSelected || sendingVerified}
                 onClick={handleBulkResend}
                 title="Creates new send rows (for already-sent / failed)"
               >
@@ -1104,8 +1146,9 @@ export default function App() {
 
           {autoSend && (
             <p className={`auto-send-banner ${autoSend.enabled ? 'on' : 'off'}`}>
-              Auto-send:{' '}
+              Verified auto-send (transactional):{' '}
               <strong>{autoSend.enabled ? 'RUNNING' : 'stopped'}</strong>
+              {' · marks sent only after Postmark confirms'}
               {autoSend.mode ? ` · ${autoSend.mode}` : ''}
               {' · '}
               {autoSend.batchSize}/{autoSend.intervalLabel || 'min'}
@@ -1161,30 +1204,31 @@ export default function App() {
                     <td>{formatTime(s.sent_at || s.created_at)}</td>
                     <td className="ellipsis muted">{s.error_message || '—'}</td>
                     <td>
-                      {s.status === 'pending' ? (
+                      {s.status === 'pending' || s.status === 'failed' ? (
                         <button
                           className="ghost small"
-                          disabled={sendingSelected}
+                          disabled={sendingSelected || sendingVerified || autoSend?.enabled}
+                          title="Transactional 1-by-1; marks sent only after Postmark confirms"
                           onClick={async () => {
-                            setSelected(new Set([s.id]));
-                            setSendingSelected(true);
+                            setSendingVerified(true);
                             setError('');
                             try {
-                              const result = await api.sendSelected([s.id]);
+                              const result = await api.sendVerified([s.id]);
                               setNotice(
                                 result.success
-                                  ? `Sent ${s.recipient_email}`
+                                  ? `Verified sent ${s.recipient_email}`
                                   : `Failed: ${result.results?.[0]?.error || 'error'}`
                               );
                               loadHistory();
+                              loadAutoSend();
                             } catch (err) {
                               setError(err.message);
                             } finally {
-                              setSendingSelected(false);
+                              setSendingVerified(false);
                             }
                           }}
                         >
-                          Send
+                          Send verified
                         </button>
                       ) : (
                         <button className="ghost small" onClick={() => handleResend(s.id)}>
