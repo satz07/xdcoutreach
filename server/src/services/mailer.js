@@ -514,6 +514,85 @@ async function sendOneEmail({ to, subject, html, text, includeLogos = true, from
   };
 }
 
+/**
+ * Send one email on transactional (outbound) stream, then confirm it exists in
+ * Postmark Activity before treating it as sent.
+ */
+async function sendOneVerifiedTransactional({ to, subject, html, text, fromName }) {
+  const token = process.env.POSTMARK_SERVER_TOKEN;
+  if (!token) throw new Error('POSTMARK_SERVER_TOKEN not set');
+
+  const fromAddr = process.env.SMTP_FROM || process.env.OTP_EMAIL_FROM || process.env.SMTP_USER;
+  const name = fromName || 'XDC Network & Contour';
+  const from = `"${name}" <${fromAddr}>`;
+  const htmlBody = htmlWithPublicLogos(html);
+
+  const payload = {
+    From: from,
+    To: to,
+    Subject: subject,
+    HtmlBody: htmlBody,
+    TextBody: text || undefined,
+    MessageStream: process.env.POSTMARK_MESSAGE_STREAM || 'outbound',
+  };
+
+  const res = await fetch('https://api.postmarkapp.com/email', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-Postmark-Server-Token': token,
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ErrorCode) {
+    throw new Error(data.Message || `Postmark send failed (${res.status})`);
+  }
+
+  const messageId = data.MessageID;
+  if (!messageId) throw new Error('Postmark returned OK without MessageID');
+
+  // Poll Activity details — only mark sent if Postmark actually has the message
+  let details = null;
+  let lastErr = 'not verified';
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    await sleep(1500 + attempt * 500);
+    const dres = await fetch(`https://api.postmarkapp.com/messages/outbound/${messageId}/details`, {
+      headers: {
+        Accept: 'application/json',
+        'X-Postmark-Server-Token': token,
+      },
+    });
+    const dbody = await dres.json().catch(() => ({}));
+    if (dres.ok && dbody.MessageID && dbody.ErrorCode !== 701) {
+      details = dbody;
+      break;
+    }
+    lastErr = dbody.Message || `details ${dres.status}`;
+  }
+
+  if (!details) {
+    return {
+      email: to,
+      status: 'failed',
+      messageId,
+      error: `Postmark accepted (${messageId}) but Activity verify failed: ${lastErr}`,
+      provider: 'postmark-outbound-unverified',
+    };
+  }
+
+  return {
+    email: to,
+    status: 'sent',
+    messageId,
+    provider: 'postmark-outbound-verified',
+    postmarkStatus: details.Status,
+    messageStream: details.MessageStream,
+    sandboxed: details.Sandboxed,
+  };
+}
+
 async function sendCampaignEmails({
   recipients,
   subject,
@@ -586,6 +665,7 @@ function parseRecipients(raw) {
 module.exports = {
   getTransporter,
   sendOneEmail,
+  sendOneVerifiedTransactional,
   sendCampaignEmails,
   sendBroadcastEmails,
   parseRecipients,

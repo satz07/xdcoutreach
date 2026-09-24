@@ -1,6 +1,6 @@
 const express = require('express');
 const { pool } = require('../db/pool');
-const { sendOneEmail, sendCampaignEmails, parseRecipients } = require('../services/mailer');
+const { sendOneEmail, sendCampaignEmails, sendOneVerifiedTransactional, parseRecipients } = require('../services/mailer');
 const { buildSibosEmailHtml } = require('../templates/sibosEmail');
 const { requireAuth, requireSuperAdmin, getRemainingQuota } = require('../middleware/auth');
 
@@ -728,6 +728,89 @@ router.post('/sends/sync-pending', async (req, res) => {
     );
 
     res.json({ ok: true, updated: rowCount, subject });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Send selected pending rows one-by-one on transactional (outbound) stream,
+ * and only mark sent after Postmark Activity confirms the MessageID.
+ */
+router.post('/sends/send-verified', requireSuperAdmin, async (req, res) => {
+  try {
+    const { ids } = req.body || {};
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids array required' });
+    }
+    if (ids.length > 20) {
+      return res.status(400).json({ error: 'Max 20 ids per verified send' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT * FROM email_sends WHERE id = ANY($1::int[]) AND status IN ('pending', 'failed') ORDER BY id ASC`,
+      [ids.map(Number)]
+    );
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'No pending/failed rows in selection' });
+    }
+
+    const results = [];
+    let success = 0;
+    let failure = 0;
+
+    for (const row of rows) {
+      try {
+        const r = await sendOneVerifiedTransactional({
+          to: row.recipient_email,
+          subject: row.subject,
+          html: row.html_body,
+        });
+        if (r.status === 'sent') {
+          success += 1;
+          await pool.query(
+            `UPDATE email_sends
+             SET status = 'sent', message_id = $1, sent_at = NOW(), error_message = NULL,
+                 sent_by_user_id = COALESCE(sent_by_user_id, $3)
+             WHERE id = $2`,
+            [r.messageId, row.id, req.user.id]
+          );
+        } else {
+          failure += 1;
+          await pool.query(
+            `UPDATE email_sends
+             SET status = 'failed', message_id = $1, error_message = $2,
+                 sent_by_user_id = COALESCE(sent_by_user_id, $4)
+             WHERE id = $3`,
+            [r.messageId || null, r.error || 'verify failed', row.id, req.user.id]
+          );
+        }
+        results.push({ id: row.id, ...r });
+      } catch (err) {
+        failure += 1;
+        await pool.query(
+          `UPDATE email_sends
+           SET status = 'failed', error_message = $1, sent_by_user_id = COALESCE(sent_by_user_id, $3)
+           WHERE id = $2`,
+          [err.message, row.id, req.user.id]
+        );
+        results.push({
+          id: row.id,
+          email: row.recipient_email,
+          status: 'failed',
+          error: err.message,
+        });
+      }
+    }
+
+    res.json({
+      ok: true,
+      success,
+      failure,
+      stream: 'outbound',
+      verified: true,
+      results,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
