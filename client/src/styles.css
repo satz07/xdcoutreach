@@ -304,6 +304,33 @@ button.ghost:disabled {
   cursor: not-allowed;
 }
 
+button.danger {
+  background: var(--err);
+  color: #fff;
+  border: none;
+}
+
+button.danger:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+.auto-send-banner {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.auto-send-banner.on {
+  background: #e8f7ee;
+  color: #146c2e;
+}
+
+.auto-send-banner.off {
+  background: #f4f4f5;
+  color: var(--muted);
+}
+
 button.ghost {
   background: #fff;
   border-color: var(--line);
