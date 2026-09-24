@@ -1,15 +1,18 @@
 const { pool } = require('../db/pool');
-const { sendCampaignEmails } = require('./mailer');
+const { sendOneVerifiedTransactional } = require('./mailer');
 
-const BATCH_SIZE = Number(process.env.AUTO_SEND_BATCH || 20);
+// Verified outbound is slower — default 10/min keeps headroom for Activity confirm
+const BATCH_SIZE = Number(process.env.AUTO_SEND_BATCH || 10);
 const INTERVAL_MS = Number(process.env.AUTO_SEND_INTERVAL_MS || 60_000);
 
 let timer = null;
-let running = false; // tick in progress
+let running = false;
 let enabled = false;
 let lastTick = null;
 let lastError = null;
 let startedBy = null;
+let requeueRunning = false;
+let lastRequeue = null;
 
 async function ensureSettingsTable() {
   await pool.query(`
@@ -48,7 +51,6 @@ async function loadEnabledFlag() {
 }
 
 async function reclaimStaleSending() {
-  // Any leftover 'sending' from a crashed tick → back to pending
   await pool.query(
     `UPDATE email_sends
      SET status = 'pending', error_message = NULL
@@ -56,9 +58,6 @@ async function reclaimStaleSending() {
   );
 }
 
-/**
- * Claim next N pending rows (ordered by id) and mark as sending.
- */
 async function claimBatch(limit = BATCH_SIZE) {
   const client = await pool.connect();
   try {
@@ -96,47 +95,148 @@ async function claimBatch(limit = BATCH_SIZE) {
   }
 }
 
-async function applyResults(rows, campaignResult, userId = null) {
-  const idByEmail = new Map(rows.map((r) => [r.recipient_email.toLowerCase(), r.id]));
-  let success = 0;
-  let failure = 0;
-
-  for (const r of campaignResult.results || []) {
-    const sendId = idByEmail.get(String(r.email).toLowerCase());
-    if (!sendId) continue;
-    if (r.status === 'sent') {
-      success += 1;
-      await pool.query(
-        `UPDATE email_sends
-         SET status = 'sent', message_id = $1, sent_at = NOW(), error_message = NULL,
-             sent_by_user_id = COALESCE(sent_by_user_id, $3)
-         WHERE id = $2`,
-        [r.messageId || null, sendId, userId]
+async function fetchSuppressions() {
+  const token = process.env.POSTMARK_SERVER_TOKEN;
+  if (!token) return new Set();
+  const out = new Set();
+  for (const stream of ['outbound', 'broadcast']) {
+    try {
+      const res = await fetch(
+        `https://api.postmarkapp.com/message-streams/${stream}/suppressions/dump`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'X-Postmark-Server-Token': token,
+          },
+        }
       );
-    } else {
-      failure += 1;
-      await pool.query(
-        `UPDATE email_sends
-         SET status = 'failed', error_message = $1,
-             sent_by_user_id = COALESCE(sent_by_user_id, $3)
-         WHERE id = $2`,
-        [r.error || 'send failed', sendId, userId]
-      );
+      const data = await res.json().catch(() => ({}));
+      for (const row of data.Suppressions || []) {
+        if (row.EmailAddress) out.add(String(row.EmailAddress).toLowerCase());
+      }
+    } catch (_) {
+      /* ignore */
     }
   }
+  return out;
+}
 
-  // Any still 'sending' → failed
-  const ids = rows.map((r) => r.id);
-  const stuck = await pool.query(
-    `UPDATE email_sends
-     SET status = 'failed', error_message = COALESCE(error_message, 'no provider result')
-     WHERE id = ANY($1::int[]) AND status = 'sending'
-     RETURNING id`,
-    [ids]
-  );
-  failure += stuck.rowCount || 0;
+async function postmarkMessageExists(messageId) {
+  const token = process.env.POSTMARK_SERVER_TOKEN;
+  if (!token || !messageId || String(messageId).startsWith('bulk:')) {
+    return false;
+  }
+  const res = await fetch(`https://api.postmarkapp.com/messages/outbound/${messageId}/details`, {
+    headers: {
+      Accept: 'application/json',
+      'X-Postmark-Server-Token': token,
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ErrorCode === 701) return false;
+  return Boolean(data.MessageID);
+}
 
-  return { success, failure };
+/**
+ * Find rows marked sent that Postmark Activity cannot confirm → back to pending.
+ * Suppressed addresses → failed (won't deliver).
+ */
+async function requeueUnverifiedSent({ concurrency = 15 } = {}) {
+  if (requeueRunning) {
+    return { ok: false, error: 'requeue already running', ...lastRequeue };
+  }
+  requeueRunning = true;
+  const startedAt = new Date().toISOString();
+  let checked = 0;
+  let confirmed = 0;
+  let requeued = 0;
+  let suppressed = 0;
+  let noMessageId = 0;
+
+  try {
+    const suppressions = await fetchSuppressions();
+    const { rows: sentRows } = await pool.query(
+      `SELECT id, recipient_email, message_id
+       FROM email_sends
+       WHERE status = 'sent'
+       ORDER BY id ASC`
+    );
+
+    const queue = [...sentRows];
+    async function worker() {
+      while (queue.length) {
+        const row = queue.shift();
+        if (!row) return;
+        checked += 1;
+        const email = String(row.recipient_email || '').toLowerCase();
+
+        if (suppressions.has(email)) {
+          suppressed += 1;
+          await pool.query(
+            `UPDATE email_sends
+             SET status = 'failed',
+                 error_message = 'Postmark suppressed (bounce/manual) — not requeued'
+             WHERE id = $1`,
+            [row.id]
+          );
+          continue;
+        }
+
+        if (!row.message_id) {
+          noMessageId += 1;
+          requeued += 1;
+          await pool.query(
+            `UPDATE email_sends
+             SET status = 'pending', message_id = NULL, sent_at = NULL,
+                 error_message = 'requeued: marked sent without message_id'
+             WHERE id = $1`,
+            [row.id]
+          );
+          continue;
+        }
+
+        let exists = false;
+        try {
+          exists = await postmarkMessageExists(row.message_id);
+        } catch (_) {
+          exists = false;
+        }
+
+        if (exists) {
+          confirmed += 1;
+        } else {
+          requeued += 1;
+          await pool.query(
+            `UPDATE email_sends
+             SET status = 'pending', message_id = NULL, sent_at = NULL,
+                 error_message = 'requeued: Postmark Activity missing MessageID'
+             WHERE id = $1`,
+            [row.id]
+          );
+        }
+      }
+    }
+
+    const workers = Array.from({ length: Math.min(concurrency, 20) }, () => worker());
+    await Promise.all(workers);
+
+    lastRequeue = {
+      at: startedAt,
+      finishedAt: new Date().toISOString(),
+      checked,
+      confirmed,
+      requeued,
+      suppressed,
+      noMessageId,
+    };
+    console.log('[requeue]', lastRequeue);
+    return { ok: true, ...lastRequeue };
+  } catch (err) {
+    lastRequeue = { at: startedAt, error: err.message, checked, confirmed, requeued };
+    throw err;
+  } finally {
+    requeueRunning = false;
+  }
 }
 
 async function processOneTick() {
@@ -152,35 +252,70 @@ async function processOneTick() {
         claimed: 0,
         success: 0,
         failure: 0,
+        mode: 'outbound-verified',
         note: 'queue empty — auto-send still on',
       };
       lastError = null;
       return lastTick;
     }
 
-    // Group by subject+html so mixed campaigns still work
-    const groups = new Map();
-    for (const row of rows) {
-      const key = `${row.subject}||${row.html_body}`;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(row);
-    }
-
     let success = 0;
     let failure = 0;
-    let provider = null;
+    const suppressions = await fetchSuppressions();
 
-    for (const group of groups.values()) {
-      const campaignResult = await sendCampaignEmails({
-        recipients: group.map((r) => r.recipient_email),
-        subject: group[0].subject,
-        html: group[0].html_body,
-        broadcast: group.length > 1,
-      });
-      provider = campaignResult.provider || provider;
-      const counts = await applyResults(group, campaignResult, startedBy);
-      success += counts.success;
-      failure += counts.failure;
+    for (const row of rows) {
+      const email = String(row.recipient_email || '').toLowerCase();
+      if (suppressions.has(email)) {
+        failure += 1;
+        await pool.query(
+          `UPDATE email_sends
+           SET status = 'failed',
+               error_message = 'Postmark suppressed (bounce/manual)',
+               sent_by_user_id = COALESCE(sent_by_user_id, $2)
+           WHERE id = $1`,
+          [row.id, startedBy]
+        );
+        continue;
+      }
+
+      try {
+        const r = await sendOneVerifiedTransactional({
+          to: row.recipient_email,
+          subject: row.subject,
+          html: row.html_body,
+        });
+        if (r.status === 'sent') {
+          success += 1;
+          await pool.query(
+            `UPDATE email_sends
+             SET status = 'sent', message_id = $1, sent_at = NOW(), error_message = NULL,
+                 sent_by_user_id = COALESCE(sent_by_user_id, $3)
+             WHERE id = $2`,
+            [r.messageId, row.id, startedBy]
+          );
+        } else {
+          failure += 1;
+          // Back to pending so we can retry later (don't burn the queue on transient verify lag)
+          await pool.query(
+            `UPDATE email_sends
+             SET status = 'pending', message_id = $1,
+                 error_message = $2,
+                 sent_by_user_id = COALESCE(sent_by_user_id, $4)
+             WHERE id = $3`,
+            [r.messageId || null, r.error || 'verify failed', row.id, startedBy]
+          );
+        }
+      } catch (err) {
+        failure += 1;
+        await pool.query(
+          `UPDATE email_sends
+           SET status = 'pending',
+               error_message = $1,
+               sent_by_user_id = COALESCE(sent_by_user_id, $3)
+           WHERE id = $2`,
+          [err.message, row.id, startedBy]
+        );
+      }
     }
 
     lastTick = {
@@ -188,18 +323,18 @@ async function processOneTick() {
       claimed: rows.length,
       success,
       failure,
-      provider,
+      mode: 'outbound-verified',
       firstId: rows[0].id,
       lastId: rows[rows.length - 1].id,
     };
     lastError = null;
     console.log(
-      `[auto-send] batch ${rows.length}: ${success} sent, ${failure} failed (ids ${rows[0].id}-${rows[rows.length - 1].id})`
+      `[auto-send] verified outbound ${rows.length}: ${success} sent, ${failure} failed/retry (ids ${rows[0].id}-${rows[rows.length - 1].id})`
     );
     return lastTick;
   } catch (err) {
     lastError = err.message;
-    lastTick = { at: startedAt, error: err.message };
+    lastTick = { at: startedAt, error: err.message, mode: 'outbound-verified' };
     console.error('[auto-send] tick failed:', err.message);
     return lastTick;
   } finally {
@@ -216,7 +351,6 @@ function schedule() {
       console.error('[auto-send]', err);
     });
   }, INTERVAL_MS);
-  // run soon after start (don't wait full minute)
   setTimeout(() => {
     if (enabled) {
       processOneTick().catch((err) => {
@@ -251,25 +385,34 @@ async function getStatus() {
   const sending = await pool.query(
     `SELECT COUNT(*)::int AS n FROM email_sends WHERE status = 'sending'`
   );
-  const etaMin =
-    pending.rows[0].n > 0 ? Math.ceil(pending.rows[0].n / BATCH_SIZE) : 0;
+  const sent = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM email_sends WHERE status = 'sent'`
+  );
+  const failed = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM email_sends WHERE status = 'failed'`
+  );
+  const etaMin = pending.rows[0].n > 0 ? Math.ceil(pending.rows[0].n / BATCH_SIZE) : 0;
 
   return {
     enabled,
     running,
+    mode: 'outbound-verified',
     batchSize: BATCH_SIZE,
     intervalMs: INTERVAL_MS,
     intervalLabel: `${Math.round(INTERVAL_MS / 1000)}s`,
     pending: pending.rows[0].n,
     sending: sending.rows[0].n,
+    sent: sent.rows[0].n,
+    failed: failed.rows[0].n,
     etaMinutes: etaMin,
     lastTick,
     lastError,
+    lastRequeue,
+    requeueRunning,
     startedBy,
   };
 }
 
-/** Resume from DB after process restart */
 async function initAutoSend() {
   try {
     const on = await loadEnabledFlag();
@@ -277,7 +420,7 @@ async function initAutoSend() {
       enabled = true;
       schedule();
       console.log(
-        `[auto-send] resumed (batch ${BATCH_SIZE} every ${INTERVAL_MS}ms)`
+        `[auto-send] resumed outbound-verified (batch ${BATCH_SIZE} every ${INTERVAL_MS}ms)`
       );
     } else {
       console.log('[auto-send] idle (stopped)');
@@ -293,6 +436,7 @@ module.exports = {
   getStatus,
   initAutoSend,
   processOneTick,
+  requeueUnverifiedSent,
   BATCH_SIZE,
   INTERVAL_MS,
 };

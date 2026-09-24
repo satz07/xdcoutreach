@@ -847,6 +847,22 @@ router.post('/sends/auto/stop', requireSuperAdmin, async (_req, res) => {
   }
 });
 
+/**
+ * Requeue rows marked sent that Postmark Activity cannot confirm (Error 701).
+ * Run this before restarting auto-send after ghost "sent" marks.
+ */
+router.post('/sends/requeue-unverified', requireSuperAdmin, async (_req, res) => {
+  try {
+    const { requeueUnverifiedSent, getStatus } = require('../services/autoSender');
+    // Respond after job starts if we want async — for now run sync (may take a few min)
+    const result = await requeueUnverifiedSent({ concurrency: 20 });
+    const status = await getStatus();
+    res.json({ ...result, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /** Send history with filters */
 router.get('/sends', async (req, res) => {
   try {

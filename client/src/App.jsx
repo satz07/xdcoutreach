@@ -1027,7 +1027,7 @@ export default function App() {
                   ))}
                 </ul>
               </div>
-            )}
+            )}  
           </section>
 
           <section className="panel preview">
@@ -1079,8 +1079,8 @@ export default function App() {
                 {autoSendBusy
                   ? '…'
                   : autoSend?.enabled
-                    ? 'Stop auto-send (20/min)'
-                    : 'Start auto-send (20/min)'}
+                    ? 'Stop auto-send (verified outbound)'
+                    : 'Start auto-send (verified outbound)'}
               </button>
               <button
                 className="primary"
@@ -1106,15 +1106,17 @@ export default function App() {
             <p className={`auto-send-banner ${autoSend.enabled ? 'on' : 'off'}`}>
               Auto-send:{' '}
               <strong>{autoSend.enabled ? 'RUNNING' : 'stopped'}</strong>
+              {autoSend.mode ? ` · ${autoSend.mode}` : ''}
               {' · '}
-              {autoSend.batchSize}/min
+              {autoSend.batchSize}/{autoSend.intervalLabel || 'min'}
               {' · '}
               pending {autoSend.pending ?? '—'}
+              {autoSend.sent != null ? ` · sent ${autoSend.sent}` : ''}
               {autoSend.enabled && autoSend.etaMinutes != null
                 ? ` · ~${autoSend.etaMinutes} min left`
                 : ''}
               {autoSend.lastTick?.at
-                ? ` · last batch: ${autoSend.lastTick.success ?? 0} sent / ${autoSend.lastTick.failure ?? 0} failed`
+                ? ` · last: ${autoSend.lastTick.success ?? 0} ok / ${autoSend.lastTick.failure ?? 0} retry`
                 : ''}
               {autoSend.lastError ? ` · error: ${autoSend.lastError}` : ''}
             </p>

@@ -556,8 +556,8 @@ async function sendOneVerifiedTransactional({ to, subject, html, text, fromName 
   // Poll Activity details — only mark sent if Postmark actually has the message
   let details = null;
   let lastErr = 'not verified';
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    await sleep(1500 + attempt * 500);
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await sleep(800 + attempt * 400);
     const dres = await fetch(`https://api.postmarkapp.com/messages/outbound/${messageId}/details`, {
       headers: {
         Accept: 'application/json',
