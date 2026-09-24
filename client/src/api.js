@@ -90,6 +90,9 @@ export const api = {
     request('/sends/sync-pending', { method: 'POST', body: JSON.stringify(body) }),
   importSends: (body) =>
     request('/sends/import', { method: 'POST', body: JSON.stringify(body) }),
+  autoSendStatus: () => request('/sends/auto'),
+  autoSendStart: () => request('/sends/auto/start', { method: 'POST', body: '{}' }),
+  autoSendStop: () => request('/sends/auto/stop', { method: 'POST', body: '{}' }),
   campaigns: () => request('/campaigns'),
 };
 

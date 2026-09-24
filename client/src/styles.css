@@ -455,6 +455,11 @@ th {
   color: var(--warn);
 }
 
+.status.sending {
+  background: #e8f0ff;
+  color: #254c82;
+}
+
 .pagination {
   display: flex;
   align-items: center;

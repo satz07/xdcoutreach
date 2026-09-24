@@ -67,6 +67,8 @@ async function start() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Email Agent API running on port ${PORT}`);
+    const { initAutoSend } = require('./services/autoSender');
+    initAutoSend().catch((err) => console.warn('auto-send init:', err.message));
   });
 }
 

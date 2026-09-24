@@ -116,6 +116,8 @@ export default function App() {
   const [selected, setSelected] = useState(new Set());
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [sendingSelected, setSendingSelected] = useState(false);
+  const [autoSend, setAutoSend] = useState(null);
+  const [autoSendBusy, setAutoSendBusy] = useState(false);
 
   const [newEvent, setNewEvent] = useState({ name: '', slug: '', location: '', dates: '' });
 
@@ -233,6 +235,15 @@ export default function App() {
 
   const historyPageCount = Math.max(1, Math.ceil(sendsTotal / HISTORY_PAGE_SIZE));
 
+  const loadAutoSend = useCallback(async () => {
+    try {
+      const status = await api.autoSendStatus();
+      setAutoSend(status);
+    } catch (_) {
+      /* ignore if route not deployed yet */
+    }
+  }, []);
+
   useEffect(() => {
     setHistoryPage(1);
   }, [filterQ, filterStatus]);
@@ -246,13 +257,39 @@ export default function App() {
   }, [refreshPreview, user]);
 
   useEffect(() => {
-    if (user && tab === 'history') loadHistory();
-  }, [tab, loadHistory, user]);
+    if (user && tab === 'history') {
+      loadHistory();
+      loadAutoSend();
+    }
+  }, [tab, loadHistory, loadAutoSend, user]);
+
+  useEffect(() => {
+    if (!(user && tab === 'history')) return undefined;
+    const id = setInterval(() => {
+      loadAutoSend();
+      loadHistory();
+    }, 20000);
+    return () => clearInterval(id);
+  }, [user, tab, loadAutoSend, loadHistory]);
 
   useEffect(() => {
     if (user && tab === 'admins' && isSuperAdmin) loadUsers();
   }, [tab, loadUsers, user, isSuperAdmin]);
 
+  async function handleAutoSendToggle() {
+    setAutoSendBusy(true);
+    setError('');
+    try {
+      const res = autoSend?.enabled ? await api.autoSendStop() : await api.autoSendStart();
+      setAutoSend(res);
+      setNotice(res.message || (res.enabled ? 'Auto-send started' : 'Auto-send stopped'));
+      loadHistory();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAutoSendBusy(false);
+    }
+  }
   function updateField(key, value) {
     setContent((c) => ({ ...c, [key]: value }));
   }
@@ -1022,11 +1059,24 @@ export default function App() {
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
                 <option value="">All statuses</option>
                 <option value="pending">Pending</option>
+                <option value="sending">Sending</option>
                 <option value="sent">Sent</option>
                 <option value="failed">Failed</option>
               </select>
               <button className="ghost" onClick={loadHistory} disabled={loadingHistory}>
                 {loadingHistory ? 'Loading…' : 'Refresh'}
+              </button>
+              <button
+                className={autoSend?.enabled ? 'danger' : 'primary'}
+                disabled={autoSendBusy}
+                onClick={handleAutoSendToggle}
+                title="Send next 20 pending emails every minute, in ID order"
+              >
+                {autoSendBusy
+                  ? '…'
+                  : autoSend?.enabled
+                    ? 'Stop auto-send (20/min)'
+                    : 'Start auto-send (20/min)'}
               </button>
               <button
                 className="primary"
@@ -1048,6 +1098,23 @@ export default function App() {
             </div>
           </div>
 
+          {autoSend && (
+            <p className={`auto-send-banner ${autoSend.enabled ? 'on' : 'off'}`}>
+              Auto-send:{' '}
+              <strong>{autoSend.enabled ? 'RUNNING' : 'stopped'}</strong>
+              {' · '}
+              {autoSend.batchSize}/min
+              {' · '}
+              pending {autoSend.pending ?? '—'}
+              {autoSend.enabled && autoSend.etaMinutes != null
+                ? ` · ~${autoSend.etaMinutes} min left`
+                : ''}
+              {autoSend.lastTick?.at
+                ? ` · last batch: ${autoSend.lastTick.success ?? 0} sent / ${autoSend.lastTick.failure ?? 0} failed`
+                : ''}
+              {autoSend.lastError ? ` · error: ${autoSend.lastError}` : ''}
+            </p>
+          )}
           <div className="table-wrap">
             <table>
               <thead>

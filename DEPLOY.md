@@ -25,7 +25,16 @@
 - `POSTMARK_BULK_CHUNK` — recipients per bulk request (default `500`, max `2000`)
 - `BROADCAST_THRESHOLD` — use bulk/broadcast when recipient count ≥ this (default `2`)
 - `MAX_RECIPIENTS_PER_SEND` — hard cap per campaign (default `10000`)
+- `AUTO_SEND_BATCH` — pending emails per auto-send tick (default `20`)
+- `AUTO_SEND_INTERVAL_MS` — ms between ticks (default `60000` = 1 min)
 - `SMTP_FROM` — From address only (must be a verified Postmark sender)
+
+### Auto-send (20/min)
+
+1. History tab → **Start auto-send (20/min)** (any logged-in admin).
+2. Server claims next 20 `pending` rows by ID, sends via Postmark, marks `sent`/`failed`.
+3. State persists in `app_settings` and resumes after Railway restarts if left running.
+4. **Stop auto-send** halts the timer immediately (in-flight batch still finishes).
 
 ### Bulk / broadcast sends
 

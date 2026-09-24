@@ -733,6 +733,37 @@ router.post('/sends/sync-pending', async (req, res) => {
   }
 });
 
+/** Auto-send: 20 pending / minute — start / stop / status */
+router.get('/sends/auto', async (_req, res) => {
+  try {
+    const { getStatus } = require('../services/autoSender');
+    res.json(await getStatus());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/sends/auto/start', async (req, res) => {
+  try {
+    const { startAutoSend, getStatus } = require('../services/autoSender');
+    await startAutoSend(req.user?.id || null);
+    const status = await getStatus();
+    res.json({ ok: true, message: `Auto-send started: ${status.batchSize}/min`, ...status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/sends/auto/stop', async (_req, res) => {
+  try {
+    const { stopAutoSend } = require('../services/autoSender');
+    const status = await stopAutoSend();
+    res.json({ ok: true, message: 'Auto-send stopped', ...status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /** Send history with filters */
 router.get('/sends', async (req, res) => {
   try {
