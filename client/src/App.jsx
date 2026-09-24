@@ -11,7 +11,7 @@ import {
 import LoginScreen from './LoginScreen';
 
 const DEFAULT_SUBJECT =
-  'Meet XDC Network & Contour at Sibos 2026 (Booth #DISS 43): Agentic Payments, Trade Finance & Real-Time Settlement';
+  'Meet XDC Network & Contour at Sibos 2026: Agentic Payments, Trade Finance & Real-Time Settlement';
 
 const DEFAULT_CONTENT = {
   headline: 'Join XDC Network & Contour at Sibos 2026',

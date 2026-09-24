@@ -56,7 +56,7 @@ CREATE INDEX IF NOT EXISTS idx_email_sends_sent_at ON email_sends(sent_at DESC);
 `;
 
 const DEFAULT_SUBJECT =
-  'Meet XDC Network & Contour at Sibos 2026 (Booth #DISS 43): Agentic Payments, Trade Finance & Real-Time Settlement';
+  'Meet XDC Network & Contour at Sibos 2026: Agentic Payments, Trade Finance & Real-Time Settlement';
 
 const DEFAULT_TEXT = `Join XDC Network & Contour at Sibos 2026
 Miami Beach Convention Center | September 28 – October 1, 2026
