@@ -1943,7 +1943,7 @@ export default function App() {
                       required
                       value={newSmtp.smtp_user}
                       onChange={(e) => setNewSmtp({ ...newSmtp, smtp_user: e.target.value })}
-                      placeholder="apikey or xdc"
+                      placeholder="apikey"
                     />
                   </label>
                   <label>
