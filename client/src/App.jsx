@@ -159,12 +159,7 @@ export default function App() {
   const [sendingVerified, setSendingVerified] = useState(false);
   const [autoSend, setAutoSend] = useState(null);
   const [autoSendBusy, setAutoSendBusy] = useState(false);
-
-  const [participants, setParticipants] = useState([]);
-  const [participantsTotal, setParticipantsTotal] = useState(0);
-  const [participantEmail, setParticipantEmail] = useState('');
-  const [participantBusy, setParticipantBusy] = useState(false);
-  const [participantPaste, setParticipantPaste] = useState('');
+  const [queueBusy, setQueueBusy] = useState(false);
 
   const [newEvent, setNewEvent] = useState({
     name: '',
@@ -271,17 +266,6 @@ export default function App() {
     }
   }, [user]);
 
-  const loadParticipants = useCallback(async () => {
-    if (!eventId || !user) return;
-    try {
-      const data = await api.participants(eventId, { limit: 2000 });
-      setParticipants(data.items || []);
-      setParticipantsTotal(data.total || 0);
-    } catch (err) {
-      setError(err.message);
-    }
-  }, [eventId, user]);
-
   const loadUsers = useCallback(async () => {
     if (!isSuperAdmin) return;
     try {
@@ -378,10 +362,6 @@ export default function App() {
       loadAutoSend();
     }
   }, [tab, loadHistory, loadAutoSend, user]);
-
-  useEffect(() => {
-    if (user && tab === 'participants' && eventId) loadParticipants();
-  }, [tab, eventId, loadParticipants, user]);
 
   useEffect(() => {
     if (!(user && tab === 'history')) return undefined;
@@ -733,96 +713,34 @@ export default function App() {
       setSmtpBusy(false);
     }
   }
-  async function handleAddParticipant(e) {
-    e?.preventDefault?.();
-    if (!eventId || !participantEmail.trim()) return;
-    setParticipantBusy(true);
+  /** Paste/upload emails in Compose → pending rows in Send History for this event */
+  async function addRecipientsToSendQueue() {
+    if (!eventId || !recipients.trim()) return;
+    setQueueBusy(true);
     setError('');
     try {
-      await api.addParticipants(eventId, { email: participantEmail.trim() });
-      setParticipantEmail('');
-      const queued = await api.queueParticipants(eventId);
-      setNotice(
-        `Participant added` +
-          (queued.queued
-            ? ` · ${queued.queued} queued as pending in Send History`
-            : queued.message
-              ? ` · ${queued.message}`
-              : '')
-      );
-      loadParticipants();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setParticipantBusy(false);
-    }
-  }
-
-  async function handleImportParticipants() {
-    if (!eventId || !participantPaste.trim()) return;
-    setParticipantBusy(true);
-    setError('');
-    try {
-      const res = await api.addParticipants(eventId, { recipients: participantPaste });
-      setParticipantPaste('');
-      const queued = await api.queueParticipants(eventId);
-      setNotice(
-        `Imported ${res.inserted || 0} new` +
-          (res.updated ? `, updated ${res.updated}` : '') +
-          ` for ${selectedEvent?.name || 'event'}` +
-          (queued.queued
-            ? ` · ${queued.queued} pending in Send History`
-            : ' · nothing new to queue (already pending/sent?)')
-      );
-      loadParticipants();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setParticipantBusy(false);
-    }
-  }
-
-  async function handleDeleteParticipant(pid) {
-    if (!eventId) return;
-    setError('');
-    try {
-      await api.deleteParticipant(eventId, pid);
-      loadParticipants();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  async function handleQueueParticipants() {
-    if (!eventId) return;
-    setParticipantBusy(true);
-    setError('');
-    try {
-      const res = await api.queueParticipants(eventId);
-      setNotice(
-        res.queued
-          ? `Queued ${res.queued} pending send(s) for ${selectedEvent?.name || 'event'}`
-          : res.message || 'Nothing new to queue'
-      );
-      if (res.queued) setTab('history');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setParticipantBusy(false);
-    }
-  }
-
-  async function handleLoadParticipantsToCompose() {
-    if (!eventId) return;
-    setError('');
-    try {
-      const data = await api.participants(eventId, { limit: 5000 });
-      const emails = (data.items || []).map((p) => p.email);
+      const emails = extractEmailsFromText(recipients);
+      if (emails.length === 0) {
+        setError('No valid emails found');
+        return;
+      }
       setRecipients(emails.join('\n'));
-      setNotice(`Loaded ${emails.length} participant(s) into Compose recipients`);
-      setTab('compose');
+      await api.addParticipants(eventId, { emails });
+      const queued = await api.queueParticipants(eventId);
+      setNotice(
+        queued.queued
+          ? `Added ${queued.queued} pending to Send History for ${selectedEvent?.name || 'event'}`
+          : queued.message ||
+              'Already pending in Send History for this event (or no template — Save template first)'
+      );
+      if (queued.queued) {
+        setFilterStatus('pending');
+        setTab('history');
+      }
     } catch (err) {
       setError(err.message);
+    } finally {
+      setQueueBusy(false);
     }
   }
 
@@ -890,12 +808,6 @@ export default function App() {
           <nav className="tabs">
             <button className={tab === 'compose' ? 'active' : ''} onClick={() => setTab('compose')}>
               Compose & Send
-            </button>
-            <button
-              className={tab === 'participants' ? 'active' : ''}
-              onClick={() => setTab('participants')}
-            >
-              Participants
             </button>
             <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>
               Send History
@@ -1277,29 +1189,23 @@ export default function App() {
             </label>
 
             <label>
-              Recipients{' '}
-              <span className="hint">(comma, semicolon, newline, or CSV — or load from Participants)</span>
+              Recipients for this event{' '}
+              <span className="hint">
+                (paste emails or upload Excel/CSV — then add to Send History as pending)
+              </span>
               <textarea
                 rows={6}
-                placeholder="alice@bank.com, bob@corp.com&#10;or paste a column of emails from Excel…"
+                placeholder="alice@bank.com&#10;bob@corp.com"
                 value={recipients}
                 onChange={(e) => setRecipients(e.target.value)}
               />
             </label>
             <div className="actions" style={{ marginTop: 8, gap: 12, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="ghost"
-                disabled={!eventId}
-                onClick={handleLoadParticipantsToCompose}
-              >
-                Load event participants
-              </button>
               <label className="ghost" style={{ cursor: 'pointer', display: 'inline-block' }}>
-                Upload CSV / TXT
+                Upload Excel / CSV / TXT
                 <input
                   type="file"
-                  accept=".csv,.txt,.tsv,text/csv,text/plain"
+                  accept=".csv,.txt,.tsv,.xlsx,text/csv,text/plain"
                   style={{ display: 'none' }}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -1317,7 +1223,9 @@ export default function App() {
                         const merged = extractEmailsFromText(`${prev}\n${emails.join('\n')}`);
                         return merged.join('\n');
                       });
-                      setNotice(`Loaded ${emails.length} email(s) from ${file.name}.`);
+                      setNotice(
+                        `Loaded ${emails.length} email(s) from ${file.name}. Click “Add to Send History”.`
+                      );
                     };
                     reader.onerror = () => setError('Could not read file.');
                     reader.readAsText(file);
@@ -1331,45 +1239,24 @@ export default function App() {
                 onClick={() => {
                   const emails = extractEmailsFromText(recipients);
                   setRecipients(emails.join('\n'));
-                  setNotice(`Normalized to ${emails.length} unique recipient(s).`);
+                  setNotice(`Normalized to ${emails.length} unique email(s).`);
                 }}
               >
-                Clean / dedupe list
+                Clean / dedupe
               </button>
               <button
                 type="button"
                 className="primary"
-                disabled={!eventId || !recipients.trim() || participantBusy}
-                title="Save to this event’s participant list AND create pending rows in Send History"
-                onClick={async () => {
-                  setParticipantBusy(true);
-                  setError('');
-                  try {
-                    const res = await api.addParticipants(eventId, { recipients });
-                    const queued = await api.queueParticipants(eventId);
-                    setNotice(
-                      `Saved ${res.inserted || 0} participant(s) to ${selectedEvent?.name || 'event'}` +
-                        (queued.queued
-                          ? ` · queued ${queued.queued} as pending in Send History`
-                          : ` · ${queued.message || 'no new pending (already pending/sent for this event)'}`)
-                    );
-                    loadParticipants();
-                    if (queued.queued) setTab('history');
-                  } catch (err) {
-                    setError(err.message);
-                  } finally {
-                    setParticipantBusy(false);
-                  }
-                }}
+                disabled={!eventId || !recipients.trim() || queueBusy}
+                title="Create pending rows in Send History for this event"
+                onClick={addRecipientsToSendQueue}
               >
-                {participantBusy ? 'Saving…' : 'Save + queue to History'}
+                {queueBusy ? 'Adding…' : 'Add to Send History (pending)'}
               </button>
             </div>
             <p className="meta-line">
-              {recipientCount(recipients)} recipient(s)
-              {recipientCount(recipients) > 1
-                ? ' · will send via Postmark broadcast/bulk'
-                : ''}
+              {recipientCount(recipients)} email(s) · event:{' '}
+              {selectedEvent?.name || '—'} · then open Send History to send one-by-one
             </p>
 
             <div className="actions">
@@ -1648,143 +1535,6 @@ export default function App() {
         </main>
       )}
 
-      {tab === 'participants' && (
-        <main className="history">
-          <div className="panel-head row">
-            <div>
-              <h2>Participants — {selectedEvent?.name || 'Select an event'}</h2>
-              <p>
-                {participantsTotal} contact(s) stored for this event only. Queue them to Send History
-                when ready.
-              </p>
-            </div>
-            <div className="filters">
-              <select
-                value={eventId || ''}
-                onChange={(e) => setEventId(Number(e.target.value) || null)}
-              >
-                {events.map((ev) => (
-                  <option key={ev.id} value={ev.id}>
-                    {ev.name}
-                  </option>
-                ))}
-              </select>
-              <button className="ghost" onClick={loadParticipants} disabled={!eventId}>
-                Refresh
-              </button>
-              <button
-                className="ghost"
-                disabled={!eventId || participantsTotal === 0}
-                onClick={handleLoadParticipantsToCompose}
-              >
-                Load into Compose
-              </button>
-              <button
-                className="primary"
-                disabled={!eventId || participantBusy || participantsTotal === 0}
-                onClick={handleQueueParticipants}
-              >
-                {participantBusy ? 'Queuing…' : 'Queue pending sends'}
-              </button>
-            </div>
-          </div>
-
-          <div className="panel" style={{ marginBottom: 16 }}>
-            <form className="event-form" onSubmit={handleAddParticipant}>
-              <label>
-                Add email
-                <input
-                  type="email"
-                  placeholder="name@company.com"
-                  value={participantEmail}
-                  onChange={(e) => setParticipantEmail(e.target.value)}
-                />
-              </label>
-              <button className="primary" type="submit" disabled={participantBusy || !eventId}>
-                Add
-              </button>
-            </form>
-            <label>
-              Paste / import list
-              <textarea
-                rows={4}
-                placeholder="Paste emails (comma, newline, or CSV)…"
-                value={participantPaste}
-                onChange={(e) => setParticipantPaste(e.target.value)}
-              />
-            </label>
-            <div className="actions" style={{ gap: 12, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="primary"
-                disabled={participantBusy || !participantPaste.trim() || !eventId}
-                onClick={handleImportParticipants}
-              >
-                Import to this event
-              </button>
-              <label className="ghost" style={{ cursor: 'pointer', display: 'inline-block' }}>
-                Upload CSV / TXT
-                <input
-                  type="file"
-                  accept=".csv,.txt,.tsv,text/csv,text/plain"
-                  style={{ display: 'none' }}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      setParticipantPaste(String(reader.result || ''));
-                      setNotice(`Loaded file ${file.name} — click Import to save`);
-                    };
-                    reader.readAsText(file);
-                  }}
-                />
-              </label>
-            </div>
-          </div>
-
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Email</th>
-                  <th>Name</th>
-                  <th>Company</th>
-                  <th>Added</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {participants.map((p) => (
-                  <tr key={p.id}>
-                    <td>{p.email}</td>
-                    <td>{p.name || '—'}</td>
-                    <td>{p.company || '—'}</td>
-                    <td>{formatTime(p.created_at)}</td>
-                    <td>
-                      <button
-                        className="ghost small"
-                        onClick={() => handleDeleteParticipant(p.id)}
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {participants.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="empty">
-                      No participants for this event yet. Import a list above.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </main>
-      )}
-
       {tab === 'events' && (
         <main className="events">
           <section className="panel">
@@ -1883,7 +1633,7 @@ export default function App() {
               </button>
             </form>
             <p className="hint-block">
-              Each event has its own template, participants, send history, and mail provider.
+              Each event has its own template, send history, and mail provider. Add recipients in Compose.
             </p>
           </section>
 

@@ -349,7 +349,7 @@ router.post('/events/:id/participants/queue', async (req, res) => {
              SELECT 1 FROM email_sends s
              WHERE s.event_id = p.event_id
                AND LOWER(s.recipient_email) = p.email
-               AND s.status IN ('pending', 'sending', 'sent')
+               AND s.status IN ('pending', 'sending')
            )
          ORDER BY p.email`,
         [eventId]
