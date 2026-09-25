@@ -2,6 +2,11 @@ const express = require('express');
 const { pool } = require('../db/pool');
 const { sendOneEmail, sendCampaignEmails, sendOneVerifiedTransactional, sendOneForEvent, parseRecipients } = require('../services/mailer');
 const { buildSibosEmailHtml } = require('../templates/sibosEmail');
+const {
+  buildContourSibosEmailHtml,
+  defaultContourSibosContent,
+  CONTOUR_SIBOS_SUBJECT,
+} = require('../templates/contourSibosEmail');
 const { requireAuth, requireSuperAdmin, getRemainingQuota } = require('../middleware/auth');
 const {
   listProviders,
@@ -16,6 +21,14 @@ const {
 } = require('../services/eventTemplate');
 
 const router = express.Router();
+
+/** Pick email builder from content.templateKind (default: Sibos XDC). */
+function buildEventEmailHtml(content = {}) {
+  if (content.templateKind === 'contour-sibos') {
+    return buildContourSibosEmailHtml(content);
+  }
+  return buildSibosEmailHtml(content);
+}
 
 /** SMTP health check (no email sent) — public */
 router.get('/health', async (_req, res) => {
@@ -465,7 +478,7 @@ router.put('/templates/:id', async (req, res) => {
 
     if (rebuildDefault) {
       const c = content || {};
-      html = buildSibosEmailHtml(c);
+      html = buildEventEmailHtml(c);
       if (c.subject) subj = c.subject;
       contentJson = c;
     }
@@ -500,7 +513,7 @@ router.put('/templates/:id', async (req, res) => {
 /** Preview HTML (rebuild from structured fields without saving) */
 router.post('/templates/preview', (req, res) => {
   try {
-    const html = buildSibosEmailHtml(req.body.content || req.body || {});
+    const html = buildEventEmailHtml(req.body.content || req.body || {});
     res.json({ html });
   } catch (err) {
     res.status(500).json({ error: err.message });

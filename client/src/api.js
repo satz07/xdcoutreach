@@ -125,6 +125,10 @@ export function logoUrl(name) {
   return `${API_BASE}/logos/${name}`;
 }
 
+export function eventAssetUrl(eventSlug, name) {
+  return `${API_BASE}/events/${eventSlug}/${name}`;
+}
+
 export function getInviteTokenFromUrl() {
   try {
     return new URLSearchParams(window.location.search).get('invite') || '';

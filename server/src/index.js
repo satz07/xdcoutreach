@@ -29,6 +29,7 @@ app.use(
 );
 app.use(express.json({ limit: '10mb' }));
 app.use('/logos', express.static(path.join(__dirname, '../../public/logos')));
+app.use('/events', express.static(path.join(__dirname, '../../public/events')));
 app.use('/api/auth', auth);
 app.use('/api', api);
 
@@ -44,7 +45,13 @@ const clientDist = path.join(__dirname, '../../client/dist');
 if (fs.existsSync(clientDist) && process.env.SERVE_CLIENT === 'true') {
   app.use(express.static(clientDist));
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/logos')) return next();
+    if (
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/logos') ||
+      req.path.startsWith('/events')
+    ) {
+      return next();
+    }
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }
@@ -269,6 +276,111 @@ async function ensureSchema() {
       console.log('Seeded default Sibos 2026 template');
     } else {
       console.log('Default Sibos template already exists (left unchanged)');
+    }
+
+    // Contour @ Sibos Miami — Contour-branded invite (SendGrid)
+    const {
+      buildContourSibosEmailHtml,
+      defaultContourSibosContent,
+      CONTOUR_SIBOS_SUBJECT,
+    } = require('./templates/contourSibosEmail');
+
+    const sg = await client.query(
+      `SELECT id FROM mail_providers WHERE slug = 'sendgrid-contour' LIMIT 1`
+    );
+    const sgId = sg.rows[0]?.id || null;
+
+    let contourEventId;
+    const existingContour = await client.query(
+      `SELECT id FROM events
+       WHERE slug = 'contour-sibos-2026' OR name ILIKE 'Contour @ Sibos%'
+       ORDER BY CASE WHEN slug = 'contour-sibos-2026' THEN 0 ELSE 1 END, id ASC
+       LIMIT 1`
+    );
+    if (existingContour.rows[0]) {
+      contourEventId = existingContour.rows[0].id;
+      await client.query(
+        `UPDATE events
+         SET name = $2,
+             location = $3,
+             dates = $4,
+             mail_provider_id = COALESCE($5, mail_provider_id)
+         WHERE id = $1`,
+        [
+          contourEventId,
+          'Contour @ Sibos 2026',
+          'Miami Beach Convention Center',
+          'September 28 – October 1, 2026',
+          sgId,
+        ]
+      );
+    } else {
+      const inserted = await client.query(
+        `INSERT INTO events (name, slug, location, dates, mail_provider_id)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [
+          'Contour @ Sibos 2026',
+          'contour-sibos-2026',
+          'Miami Beach Convention Center',
+          'September 28 – October 1, 2026',
+          sgId,
+        ]
+      );
+      contourEventId = inserted.rows[0].id;
+    }
+
+    const contourContent = defaultContourSibosContent();
+    const contourHtml = buildContourSibosEmailHtml(contourContent);
+
+    const tpl = await client.query(
+      `SELECT id, content_json FROM email_templates
+       WHERE event_id = $1 AND is_default = TRUE
+       LIMIT 1`,
+      [contourEventId]
+    );
+    const kind = tpl.rows[0]?.content_json?.templateKind;
+    if (!tpl.rows[0]) {
+      await client.query(
+        `INSERT INTO email_templates
+          (event_id, name, subject, html_body, text_body, is_default, content_json)
+         VALUES ($1, $2, $3, $4, NULL, TRUE, $5)`,
+        [
+          contourEventId,
+          'Contour @ Sibos Invitation',
+          CONTOUR_SIBOS_SUBJECT,
+          contourHtml,
+          JSON.stringify(contourContent),
+        ]
+      );
+      console.log(`Seeded Contour Sibos template for event #${contourEventId}`);
+    } else if (kind !== 'contour-sibos') {
+      await client.query(
+        `UPDATE email_templates
+         SET name = $1,
+             subject = $2,
+             html_body = $3,
+             content_json = $4::jsonb,
+             updated_at = NOW()
+         WHERE id = $5`,
+        [
+          'Contour @ Sibos Invitation',
+          CONTOUR_SIBOS_SUBJECT,
+          contourHtml,
+          JSON.stringify(contourContent),
+          tpl.rows[0].id,
+        ]
+      );
+      // Push new HTML onto pending Contour queue rows
+      await client.query(
+        `UPDATE email_sends
+         SET subject = $1, html_body = $2
+         WHERE event_id = $3 AND status = ANY($4::text[])`,
+        [CONTOUR_SIBOS_SUBJECT, contourHtml, contourEventId, ['pending', 'failed']]
+      );
+      console.log(`Upgraded Contour Sibos template for event #${contourEventId}`);
+    } else {
+      console.log(`Contour Sibos template already set for event #${contourEventId}`);
     }
   } finally {
     client.release();

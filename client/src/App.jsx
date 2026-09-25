@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   api,
   logoUrl,
+  eventAssetUrl,
   getToken,
   getStoredUser,
   setSession,
@@ -14,6 +15,7 @@ const DEFAULT_SUBJECT =
   'Meet XDC Network & Contour at Sibos 2026: Agentic Payments, Trade Finance & Real-Time Settlement';
 
 const DEFAULT_CONTENT = {
+  templateKind: 'sibos-xdc',
   headline: 'Join XDC Network & Contour at Sibos 2026',
   location: 'Miami Beach Convention Center',
   dates: 'September 28 – October 1, 2026',
@@ -43,6 +45,60 @@ const DEFAULT_CONTENT = {
     'Hello,\n\nI would like to schedule a meeting with the XDC Network & Contour delegation at Sibos 2026 (Booth #DISS 43).\n\nPreferred times:\n\nThank you.',
   ctaLinkType: 'mailto',
   ctaLabel: 'Schedule a Meeting',
+};
+
+const CONTOUR_DEFAULT_SUBJECT =
+  'Meet Contour at Sibos Miami — Booth DISS43 · Breakfast panel · Discover Stage';
+
+const CONTOUR_DEFAULT_CONTENT = {
+  templateKind: 'contour-sibos',
+  headline: 'Meet Contour at Sibos Miami',
+  location: 'Miami Beach Convention Center',
+  dates: 'September 28 – October 1, 2026',
+  booth: 'Booth #DISS43',
+  greeting: 'Dear Partner,',
+  intro:
+    'There is rising global momentum behind unlocking the velocity of transactions as they flow from the business/trade transaction to payment settlement and supply chain activation. Contour has supported its members as a best practice standard for trade finance digitisation since 2021, with proven impact to supply chain velocity and working capital gains.',
+  upgrades:
+    'Latest upgrades to the platform include AI-assistance for document conversion and data validation against rulebooks, TradeTrust and GLEIF, as well as integrated payments settlements including stablecoin use cases.',
+  programIntro:
+    'We have carefully curated our Sibos program to share more and engage with the Sibos community on the underlying key themes:',
+  boothTitle: 'Meet us at the Contour Booth DISS43',
+  boothWhen: '28 September – 1 October, 2026',
+  boothWhere: 'Miami Beach Convention Center · Contour Network exhibitor booth (DISS43)',
+  boothCtaLabel: 'Book a meeting',
+  boothCtaUrl: 'https://calendly.com/rahul-contour',
+  breakfastTitle: 'Industry networking breakfast & Experts Panel',
+  breakfastTheme: 'Unlocking Velocity of Trade to Payments',
+  breakfastWhen: 'Tuesday, 29 September 2026 · 7:30 AM – 9:30 AM',
+  breakfastWhere: 'The Bass Art Museum (minutes from the Convention Center)',
+  breakfastWho: 'Opening Bell: Institutional Breakfast with industry experts — seats are limited.',
+  breakfastNote: 'Reserve your place early! Seats are limited!',
+  breakfastCtaLabel: 'Reserve your place',
+  breakfastCtaUrl: 'https://luma.com/Unlockingvelocity',
+  discoverTitle: 'Discovery Stage Showcase: Contour',
+  discoverTheme:
+    'A Convergent Future: Digital Trade, Payments Optionality, Global Standards and AI',
+  discoverWhen: 'Thursday, 1 October 2026',
+  discoverWhere: 'Sibos Discover Stage · Session DS 33',
+  discoverWho: 'Rahul Bhargava, Contour Powered by XDC Network',
+  discoverCtaLabel: 'Register your place',
+  discoverCtaUrl: 'https://luma.com/tnotpk0e',
+  closing: 'Thank you and we look forward to meeting you at Sibos!',
+  signOff: 'Regards,\nThe Contour Network Team',
+  footerNote: 'Contour Network · Sibos Miami 2026 · Booth #DISS43',
+  // unused by Contour builder but keep hydrate happy
+  showcase: '',
+  solutionsTitle: '',
+  solutionsText: '',
+  leadershipTitle: '',
+  cta: '',
+  disclaimer: '',
+  ctaEmail: 'events@contour.network',
+  ctaMailtoSubject: '',
+  ctaMailtoBody: '',
+  ctaLinkType: 'mailto',
+  ctaLabel: 'Book a meeting',
 };
 
 function parseSolutions(text) {
@@ -75,25 +131,35 @@ function hydrateFromTemplate(tpl, event) {
       cj = null;
     }
   }
+  const isContour =
+    cj?.templateKind === 'contour-sibos' ||
+    /contour/i.test(event?.slug || '') ||
+    /contour/i.test(event?.name || '');
+  const base = isContour ? CONTOUR_DEFAULT_CONTENT : DEFAULT_CONTENT;
+  const defaultSubject = isContour ? CONTOUR_DEFAULT_SUBJECT : DEFAULT_SUBJECT;
+
   if (cj && typeof cj === 'object') {
     const solutionsText =
       cj.solutionsText ||
       solutionsToText(cj.solutions) ||
-      DEFAULT_CONTENT.solutionsText;
+      base.solutionsText ||
+      '';
     return {
-      subject: tpl.subject || DEFAULT_SUBJECT,
-      content: { ...DEFAULT_CONTENT, ...cj, solutionsText },
+      subject: tpl.subject || defaultSubject,
+      content: { ...base, ...cj, solutionsText },
     };
   }
   return {
-    subject: tpl?.subject || DEFAULT_SUBJECT,
+    subject: tpl?.subject || defaultSubject,
     content: {
-      ...DEFAULT_CONTENT,
+      ...base,
       headline: event
-        ? `Join XDC Network & Contour at ${event.name}`
-        : DEFAULT_CONTENT.headline,
-      location: event?.location || DEFAULT_CONTENT.location,
-      dates: event?.dates || DEFAULT_CONTENT.dates,
+        ? isContour
+          ? `Meet Contour at ${event.name}`
+          : `Join XDC Network & Contour at ${event.name}`
+        : base.headline,
+      location: event?.location || base.location,
+      dates: event?.dates || base.dates,
     },
   };
 }
@@ -198,6 +264,11 @@ export default function App() {
       solutions: parseSolutions(content.solutionsText),
       xdcLogoSrc: logoUrl('xdc.png'),
       contourLogoSrc: logoUrl('contour.png'),
+      ...(content.templateKind === 'contour-sibos'
+        ? {
+            assetBase: eventAssetUrl('contour-sibos', '').replace(/\/$/, ''),
+          }
+        : {}),
     }),
     [content]
   );
@@ -235,6 +306,8 @@ export default function App() {
     () => events.find((e) => e.id === eventId) || null,
     [events, eventId]
   );
+
+  const isContourTemplate = content.templateKind === 'contour-sibos';
 
   const loadBase = useCallback(async () => {
     if (!user) return;
@@ -1066,127 +1139,339 @@ export default function App() {
             <label>
               Intro
               <textarea
-                rows={3}
+                rows={4}
                 value={content.intro}
                 onChange={(e) => updateField('intro', e.target.value)}
               />
             </label>
 
-            <label>
-              Showcase paragraph
-              <textarea
-                rows={4}
-                value={content.showcase}
-                onChange={(e) => updateField('showcase', e.target.value)}
-              />
-            </label>
+            {isContourTemplate ? (
+              <>
+                <label>
+                  Platform upgrades paragraph
+                  <textarea
+                    rows={3}
+                    value={content.upgrades || ''}
+                    onChange={(e) => updateField('upgrades', e.target.value)}
+                  />
+                </label>
 
-            <label>
-              Solutions section title
-              <input
-                value={content.solutionsTitle}
-                onChange={(e) => updateField('solutionsTitle', e.target.value)}
-              />
-            </label>
+                <label>
+                  Program intro
+                  <textarea
+                    rows={2}
+                    value={content.programIntro || ''}
+                    onChange={(e) => updateField('programIntro', e.target.value)}
+                  />
+                </label>
 
-            <label>
-              Solutions <span className="hint">(one per line — Title: description)</span>
-              <textarea
-                rows={8}
-                value={content.solutionsText}
-                onChange={(e) => updateField('solutionsText', e.target.value)}
-              />
-            </label>
+                <p className="hint" style={{ margin: '12px 0 4px', fontWeight: 600 }}>
+                  Booth meeting
+                </p>
+                <label>
+                  Booth title
+                  <input
+                    value={content.boothTitle || ''}
+                    onChange={(e) => updateField('boothTitle', e.target.value)}
+                  />
+                </label>
+                <div className="row-2">
+                  <label>
+                    Booth when
+                    <input
+                      value={content.boothWhen || ''}
+                      onChange={(e) => updateField('boothWhen', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Book meeting URL
+                    <input
+                      value={content.boothCtaUrl || ''}
+                      onChange={(e) => updateField('boothCtaUrl', e.target.value)}
+                    />
+                  </label>
+                </div>
+                <label>
+                  Booth where
+                  <input
+                    value={content.boothWhere || ''}
+                    onChange={(e) => updateField('boothWhere', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Booth CTA label
+                  <input
+                    value={content.boothCtaLabel || ''}
+                    onChange={(e) => updateField('boothCtaLabel', e.target.value)}
+                  />
+                </label>
 
-            <label>
-              Leadership section title
-              <input
-                value={content.leadershipTitle}
-                onChange={(e) => updateField('leadershipTitle', e.target.value)}
-              />
-            </label>
+                <p className="hint" style={{ margin: '12px 0 4px', fontWeight: 600 }}>
+                  Networking breakfast &amp; panel
+                </p>
+                <label>
+                  Breakfast title
+                  <input
+                    value={content.breakfastTitle || ''}
+                    onChange={(e) => updateField('breakfastTitle', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Theme
+                  <input
+                    value={content.breakfastTheme || ''}
+                    onChange={(e) => updateField('breakfastTheme', e.target.value)}
+                  />
+                </label>
+                <div className="row-2">
+                  <label>
+                    When
+                    <input
+                      value={content.breakfastWhen || ''}
+                      onChange={(e) => updateField('breakfastWhen', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Where
+                    <input
+                      value={content.breakfastWhere || ''}
+                      onChange={(e) => updateField('breakfastWhere', e.target.value)}
+                    />
+                  </label>
+                </div>
+                <label>
+                  Who / panel
+                  <textarea
+                    rows={2}
+                    value={content.breakfastWho || ''}
+                    onChange={(e) => updateField('breakfastWho', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Seats note
+                  <input
+                    value={content.breakfastNote || ''}
+                    onChange={(e) => updateField('breakfastNote', e.target.value)}
+                  />
+                </label>
+                <div className="row-2">
+                  <label>
+                    Reserve CTA label
+                    <input
+                      value={content.breakfastCtaLabel || ''}
+                      onChange={(e) => updateField('breakfastCtaLabel', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Reserve URL (Luma)
+                    <input
+                      value={content.breakfastCtaUrl || ''}
+                      onChange={(e) => updateField('breakfastCtaUrl', e.target.value)}
+                    />
+                  </label>
+                </div>
 
-            <label>
-              Meeting / booth CTA text
-              <textarea
-                rows={3}
-                value={content.cta}
-                onChange={(e) => updateField('cta', e.target.value)}
-              />
-            </label>
+                <p className="hint" style={{ margin: '12px 0 4px', fontWeight: 600 }}>
+                  Discovery Stage
+                </p>
+                <label>
+                  Discover title
+                  <input
+                    value={content.discoverTitle || ''}
+                    onChange={(e) => updateField('discoverTitle', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Theme
+                  <input
+                    value={content.discoverTheme || ''}
+                    onChange={(e) => updateField('discoverTheme', e.target.value)}
+                  />
+                </label>
+                <div className="row-2">
+                  <label>
+                    When
+                    <input
+                      value={content.discoverWhen || ''}
+                      onChange={(e) => updateField('discoverWhen', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Where
+                    <input
+                      value={content.discoverWhere || ''}
+                      onChange={(e) => updateField('discoverWhere', e.target.value)}
+                    />
+                  </label>
+                </div>
+                <label>
+                  Who / speaker
+                  <input
+                    value={content.discoverWho || ''}
+                    onChange={(e) => updateField('discoverWho', e.target.value)}
+                  />
+                </label>
+                <div className="row-2">
+                  <label>
+                    Register CTA label
+                    <input
+                      value={content.discoverCtaLabel || ''}
+                      onChange={(e) => updateField('discoverCtaLabel', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Register URL
+                    <input
+                      value={content.discoverCtaUrl || ''}
+                      onChange={(e) => updateField('discoverCtaUrl', e.target.value)}
+                    />
+                  </label>
+                </div>
 
-            <div className="row-2">
-              <label>
-                CTA button label
-                <input
-                  value={content.ctaLabel}
-                  onChange={(e) => updateField('ctaLabel', e.target.value)}
-                />
-              </label>
-              <label>
-                Schedule meeting email (To)
-                <input
-                  type="email"
-                  placeholder="support@xdcforpayments.org"
-                  value={content.ctaEmail}
-                  onChange={(e) => updateField('ctaEmail', e.target.value)}
-                />
-              </label>
-            </div>
+                <label>
+                  Closing line
+                  <input
+                    value={content.closing || ''}
+                    onChange={(e) => updateField('closing', e.target.value)}
+                  />
+                </label>
 
-              <label>
-              Open meeting link in
-              <select
-                value={content.ctaLinkType}
-                onChange={(e) => updateField('ctaLinkType', e.target.value)}
-              >
-                <option value="mailto">Mail / Gmail app (best on mobile)</option>
-                <option value="gmail">Gmail website (desktop browser)</option>
-              </select>
-            </label>
+                <label>
+                  Sign-off
+                  <textarea
+                    rows={2}
+                    value={content.signOff || ''}
+                    onChange={(e) => updateField('signOff', e.target.value)}
+                  />
+                </label>
 
-            <label>
-              Meeting email subject
-              <input
-                value={content.ctaMailtoSubject}
-                onChange={(e) => updateField('ctaMailtoSubject', e.target.value)}
-              />
-            </label>
+                <label>
+                  Footer note
+                  <input
+                    value={content.footerNote || ''}
+                    onChange={(e) => updateField('footerNote', e.target.value)}
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <label>
+                  Showcase paragraph
+                  <textarea
+                    rows={4}
+                    value={content.showcase}
+                    onChange={(e) => updateField('showcase', e.target.value)}
+                  />
+                </label>
 
-            <label>
-              Meeting email body
-              <textarea
-                rows={5}
-                value={content.ctaMailtoBody}
-                onChange={(e) => updateField('ctaMailtoBody', e.target.value)}
-              />
-            </label>
+                <label>
+                  Solutions section title
+                  <input
+                    value={content.solutionsTitle}
+                    onChange={(e) => updateField('solutionsTitle', e.target.value)}
+                  />
+                </label>
 
-            <label>
-              Closing line
-              <input
-                value={content.closing}
-                onChange={(e) => updateField('closing', e.target.value)}
-              />
-            </label>
+                <label>
+                  Solutions <span className="hint">(one per line — Title: description)</span>
+                  <textarea
+                    rows={8}
+                    value={content.solutionsText}
+                    onChange={(e) => updateField('solutionsText', e.target.value)}
+                  />
+                </label>
 
-            <label>
-              Sign-off
-              <textarea
-                rows={2}
-                value={content.signOff}
-                onChange={(e) => updateField('signOff', e.target.value)}
-              />
-            </label>
+                <label>
+                  Leadership section title
+                  <input
+                    value={content.leadershipTitle}
+                    onChange={(e) => updateField('leadershipTitle', e.target.value)}
+                  />
+                </label>
 
-            <label>
-              Disclaimer
-              <textarea
-                rows={3}
-                value={content.disclaimer}
-                onChange={(e) => updateField('disclaimer', e.target.value)}
-              />
-            </label>
+                <label>
+                  Meeting / booth CTA text
+                  <textarea
+                    rows={3}
+                    value={content.cta}
+                    onChange={(e) => updateField('cta', e.target.value)}
+                  />
+                </label>
+
+                <div className="row-2">
+                  <label>
+                    CTA button label
+                    <input
+                      value={content.ctaLabel}
+                      onChange={(e) => updateField('ctaLabel', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Schedule meeting email (To)
+                    <input
+                      type="email"
+                      placeholder="support@xdcforpayments.org"
+                      value={content.ctaEmail}
+                      onChange={(e) => updateField('ctaEmail', e.target.value)}
+                    />
+                  </label>
+                </div>
+
+                <label>
+                  Open meeting link in
+                  <select
+                    value={content.ctaLinkType}
+                    onChange={(e) => updateField('ctaLinkType', e.target.value)}
+                  >
+                    <option value="mailto">Mail / Gmail app (best on mobile)</option>
+                    <option value="gmail">Gmail website (desktop browser)</option>
+                  </select>
+                </label>
+
+                <label>
+                  Meeting email subject
+                  <input
+                    value={content.ctaMailtoSubject}
+                    onChange={(e) => updateField('ctaMailtoSubject', e.target.value)}
+                  />
+                </label>
+
+                <label>
+                  Meeting email body
+                  <textarea
+                    rows={5}
+                    value={content.ctaMailtoBody}
+                    onChange={(e) => updateField('ctaMailtoBody', e.target.value)}
+                  />
+                </label>
+
+                <label>
+                  Closing line
+                  <input
+                    value={content.closing}
+                    onChange={(e) => updateField('closing', e.target.value)}
+                  />
+                </label>
+
+                <label>
+                  Sign-off
+                  <textarea
+                    rows={2}
+                    value={content.signOff}
+                    onChange={(e) => updateField('signOff', e.target.value)}
+                  />
+                </label>
+
+                <label>
+                  Disclaimer
+                  <textarea
+                    rows={3}
+                    value={content.disclaimer}
+                    onChange={(e) => updateField('disclaimer', e.target.value)}
+                  />
+                </label>
+              </>
+            )}
 
             <label>
               Recipients for this event{' '}
