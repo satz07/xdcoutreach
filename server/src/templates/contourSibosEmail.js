@@ -51,8 +51,9 @@ function buildContourSibosEmailHtml(overrides = {}) {
     upgrades = `Latest upgrades to the platform include AI-assistance for document conversion and data validation against rulebooks, TradeTrust and GLEIF, as well as integrated payments settlements including stablecoin use cases.`,
     programIntro = `We have carefully curated our Sibos program to share more and engage with the Sibos community on the underlying key themes:`,
     boothTitle = 'Meet us at the Contour Booth DISS43',
-    boothWhen = '28 September – 1 October, 2026',
-    boothWhere = 'Miami Beach Convention Center · Contour Network exhibitor booth (DISS43)',
+    boothWhen = 'Sept 28 – October 01, 2026',
+    boothWhere = 'Miami Beach Convention Center',
+    boothTime = '',
     boothBody = 'Schedule a private meeting with a Contour Network professional to discuss what’s next for your organization.',
     boothCtaLabel = 'Book a meeting',
     boothCtaUrl = '',
@@ -61,20 +62,22 @@ function buildContourSibosEmailHtml(overrides = {}) {
     ctaMailtoBody =
       'Hello,\n\nI would like to schedule a meeting with Contour Network at Sibos 2026 (Booth #DISS43).\n\nPreferred times:\n\nThank you.',
     ctaLinkType = 'gmail',
-    breakfastTitle = 'Unlocking Velocity in Trade to Payments — Sibos Miami 2026',
-    breakfastTheme = 'Unlocking Velocity in Trade to Payments',
-    breakfastWhen = 'Tuesday, 29 September 2026 · 7:30 AM – 9:30 AM',
-    breakfastWhere = 'The Bass Art Museum (minutes from the Convention Center)',
-    breakfastWho = 'Opening Bell: Institutional Breakfast with industry experts — seats are limited.',
+    breakfastTitle = 'Industry networking breakfast and Experts Panel',
+    breakfastTheme = '',
+    breakfastWhen = 'September 29, 2026',
+    breakfastTime = '7:30 AM – 9:30 AM EDT',
+    breakfastWhere = '',
+    breakfastWho = 'Industry leaders from SAP, Accenture, Eastnets and GLEIF, moderated by Contour',
     breakfastNote = 'Reserve your place early! Seats are limited!',
     breakfastCtaLabel = 'Reserve your place',
     breakfastCtaUrl = 'https://luma.com/lwtff9cg',
-    discoverTitle = 'Contour Showcase',
-    discoverTheme = 'A convergent future: Digital Trade, Payments Optionality, Global Standards and AI',
-    discoverWhen = 'Thursday, 1 October 2026',
-    discoverWhere = 'Sibos Discover Stage · Session DS 33',
-    discoverWho = 'Rahul Bhargava, Contour Powered by XDC Network',
-    discoverCtaLabel = 'Reserve your place',
+    discoverTitle = 'Discovery Stage Showcase: Contour',
+    discoverTheme = '',
+    discoverWhen = 'October 01, 2026',
+    discoverTime = '9:30 AM – 10:30 AM EDT',
+    discoverWhere = 'Discover Stage, Sibos Miami 2026 | Session Code: DS 33',
+    discoverWho = 'Rahul Bhargava, Interim Chief Operating Officer, Contour Network',
+    discoverCtaLabel = 'Register your place',
     discoverCtaUrl = 'https://luma.com/tnotpk0e',
     closing = 'Thank you and we look forward to meeting you at Sibos!',
     signOff = 'Regards,\nThe Contour Network Team',
@@ -117,7 +120,7 @@ function buildContourSibosEmailHtml(overrides = {}) {
     .map((line) => line || '&nbsp;')
     .join('<br/>');
 
-  const programCard = ({ image, eyebrow, title, theme, when, where, who, note, ctaUrl, ctaLabel }) => `
+  const programCard = ({ image, title, when, time, where, speaker, note, ctaUrl, ctaLabel }) => `
     <tr>
       <td style="padding:0 0 16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border:1px solid #E6E0D8;border-radius:8px;overflow:hidden;">
@@ -129,15 +132,12 @@ function buildContourSibosEmailHtml(overrides = {}) {
           </tr>
           <tr>
             <td style="padding:18px 18px 8px;">
-              <p style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#F2661F;font-weight:700;">
-                ${escapeHtml(eyebrow)}
-              </p>
-              <h3 style="margin:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:18px;line-height:1.35;color:#182752;font-weight:700;">
+              <h3 style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:18px;line-height:1.35;color:#182752;font-weight:700;">
                 ${escapeHtml(title)}
               </h3>
               ${
-                theme
-                  ? `<p style="margin:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#182752;font-weight:600;">Theme: ${escapeHtml(theme)}</p>`
+                speaker
+                  ? `<p style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#182752;">${escapeHtml(speaker)}</p>`
                   : ''
               }
               ${
@@ -146,18 +146,18 @@ function buildContourSibosEmailHtml(overrides = {}) {
                   : ''
               }
               ${
+                time
+                  ? `<p style="margin:0 0 4px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#4A5568;"><strong style="color:#182752;">Time:</strong> ${escapeHtml(time)}</p>`
+                  : ''
+              }
+              ${
                 where
                   ? `<p style="margin:0 0 4px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#4A5568;"><strong style="color:#182752;">Where:</strong> ${escapeHtml(where)}</p>`
                   : ''
               }
               ${
-                who
-                  ? `<p style="margin:0 0 4px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#4A5568;"><strong style="color:#182752;">Who:</strong> ${escapeHtml(who)}</p>`
-                  : ''
-              }
-              ${
                 note
-                  ? `<p style="margin:10px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#F2661F;font-weight:700;">${escapeHtml(note)}</p>`
+                  ? `<p style="margin:12px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#F2661F;font-weight:700;">${escapeHtml(note)}</p>`
                   : ''
               }
             </td>
@@ -283,36 +283,33 @@ function buildContourSibosEmailHtml(overrides = {}) {
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 ${programCard({
                   image: boothImg,
-                  eyebrow: 'Booth meetings',
                   title: boothTitle,
-                  theme: '',
                   when: boothWhen,
+                  time: boothTime,
                   where: boothWhere,
-                  who: '',
+                  speaker: '',
                   note: '',
                   ctaUrl: meetingHref,
                   ctaLabel: boothCtaLabel,
                 })}
                 ${programCard({
                   image: breakfastImg,
-                  eyebrow: 'Networking breakfast',
                   title: breakfastTitle,
-                  theme: breakfastTheme,
                   when: breakfastWhen,
+                  time: breakfastTime,
                   where: breakfastWhere,
-                  who: breakfastWho,
+                  speaker: breakfastWho,
                   note: breakfastNote,
                   ctaUrl: breakfastCtaUrl,
                   ctaLabel: breakfastCtaLabel,
                 })}
                 ${programCard({
                   image: discoverImg,
-                  eyebrow: 'Discover Stage',
                   title: discoverTitle,
-                  theme: discoverTheme,
                   when: discoverWhen,
+                  time: discoverTime,
                   where: discoverWhere,
-                  who: discoverWho,
+                  speaker: discoverWho,
                   note: '',
                   ctaUrl: discoverCtaUrl,
                   ctaLabel: discoverCtaLabel,
@@ -329,16 +326,13 @@ function buildContourSibosEmailHtml(overrides = {}) {
             </td>
           </tr>
 
-          <!-- Footer -->
+          <!-- Footer — text only, no logo (avoids wrong/oversized CID images) -->
           <tr>
-            <td bgcolor="#182752" class="email-pad" style="background-color:#182752;padding:22px 24px;">
-              <p style="margin:0 0 10px;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#C9D3E8;font-weight:600;">
-                ${escapeHtml(footerNote)}
-              </p>
-              <p style="margin:0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:12px;">
+            <td bgcolor="#182752" style="background-color:#182752;padding:22px 24px;">
+              <p style="margin:0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.7;color:#C9D3E8;">
                 <a href="https://www.contour.network" style="color:#F2661F;text-decoration:none;font-weight:700;">contour.network</a>
-                &nbsp;·&nbsp;
-                <a href="${escapeHtml(meetingHref)}" style="color:#F6C3A8;text-decoration:none;">Book a meeting</a>
+                <span style="color:#6B7A99;">&nbsp;·&nbsp;</span>
+                <a href="mailto:Rahul@contour.network" style="color:#F6C3A8;text-decoration:none;">Book a meeting</a>
               </p>
             </td>
           </tr>
@@ -367,8 +361,9 @@ function defaultContourSibosContent() {
     programIntro:
       'We have carefully curated our Sibos program to share more and engage with the Sibos community on the underlying key themes:',
     boothTitle: 'Meet us at the Contour Booth DISS43',
-    boothWhen: '28 September – 1 October, 2026',
-    boothWhere: 'Miami Beach Convention Center · Contour Network exhibitor booth (DISS43)',
+    boothWhen: 'Sept 28 – October 01, 2026',
+    boothWhere: 'Miami Beach Convention Center',
+    boothTime: '',
     boothBody:
       'Schedule a private meeting with a Contour Network professional to discuss what’s next for your organization.',
     boothCtaLabel: 'Book a meeting',
@@ -378,22 +373,22 @@ function defaultContourSibosContent() {
     ctaMailtoBody:
       'Hello,\n\nI would like to schedule a meeting with Contour Network at Sibos 2026 (Booth #DISS43).\n\nPreferred times:\n\nThank you.',
     ctaLinkType: 'gmail',
-    breakfastTitle: 'Unlocking Velocity in Trade to Payments — Sibos Miami 2026',
-    breakfastTheme: 'Unlocking Velocity in Trade to Payments',
-    breakfastWhen: 'Tuesday, 29 September 2026 · 7:30 AM – 9:30 AM',
-    breakfastWhere: 'The Bass Art Museum (minutes from the Convention Center)',
-    breakfastWho:
-      'Opening Bell: Institutional Breakfast with industry experts — seats are limited.',
+    breakfastTitle: 'Industry networking breakfast and Experts Panel',
+    breakfastTheme: '',
+    breakfastWhen: 'September 29, 2026',
+    breakfastTime: '7:30 AM – 9:30 AM EDT',
+    breakfastWhere: '',
+    breakfastWho: 'Industry leaders from SAP, Accenture, Eastnets and GLEIF, moderated by Contour',
     breakfastNote: 'Reserve your place early! Seats are limited!',
     breakfastCtaLabel: 'Reserve your place',
     breakfastCtaUrl: 'https://luma.com/lwtff9cg',
-    discoverTitle: 'Contour Showcase',
-    discoverTheme:
-      'A convergent future: Digital Trade, Payments Optionality, Global Standards and AI',
-    discoverWhen: 'Thursday, 1 October 2026',
-    discoverWhere: 'Sibos Discover Stage · Session DS 33',
-    discoverWho: 'Rahul Bhargava, Contour Powered by XDC Network',
-    discoverCtaLabel: 'Reserve your place',
+    discoverTitle: 'Discovery Stage Showcase: Contour',
+    discoverTheme: '',
+    discoverWhen: 'October 01, 2026',
+    discoverTime: '9:30 AM – 10:30 AM EDT',
+    discoverWhere: 'Discover Stage, Sibos Miami 2026 | Session Code: DS 33',
+    discoverWho: 'Rahul Bhargava, Interim Chief Operating Officer, Contour Network',
+    discoverCtaLabel: 'Register your place',
     discoverCtaUrl: 'https://luma.com/tnotpk0e',
     closing: 'Thank you and we look forward to meeting you at Sibos!',
     signOff: 'Regards,\nThe Contour Network Team',

@@ -64,25 +64,27 @@ const CONTOUR_DEFAULT_CONTENT = {
   programIntro:
     'We have carefully curated our Sibos program to share more and engage with the Sibos community on the underlying key themes:',
   boothTitle: 'Meet us at the Contour Booth DISS43',
-  boothWhen: '28 September – 1 October, 2026',
-  boothWhere: 'Miami Beach Convention Center · Contour Network exhibitor booth (DISS43)',
+  boothWhen: 'Sept 28 – October 01, 2026',
+  boothWhere: 'Miami Beach Convention Center',
+  boothTime: '',
   boothCtaLabel: 'Book a meeting',
   boothCtaUrl: '',
-  breakfastTitle: 'Unlocking Velocity in Trade to Payments — Sibos Miami 2026',
-  breakfastTheme: 'Unlocking Velocity in Trade to Payments',
-  breakfastWhen: 'Tuesday, 29 September 2026 · 7:30 AM – 9:30 AM',
-  breakfastWhere: 'The Bass Art Museum (minutes from the Convention Center)',
-  breakfastWho: 'Opening Bell: Institutional Breakfast with industry experts — seats are limited.',
+  breakfastTitle: 'Industry networking breakfast and Experts Panel',
+  breakfastTheme: '',
+  breakfastWhen: 'September 29, 2026',
+  breakfastTime: '7:30 AM – 9:30 AM EDT',
+  breakfastWhere: '',
+  breakfastWho: 'Industry leaders from SAP, Accenture, Eastnets and GLEIF, moderated by Contour',
   breakfastNote: 'Reserve your place early! Seats are limited!',
   breakfastCtaLabel: 'Reserve your place',
   breakfastCtaUrl: 'https://luma.com/lwtff9cg',
-  discoverTitle: 'Contour Showcase',
-  discoverTheme:
-    'A convergent future: Digital Trade, Payments Optionality, Global Standards and AI',
-  discoverWhen: 'Thursday, 1 October 2026',
-  discoverWhere: 'Sibos Discover Stage · Session DS 33',
-  discoverWho: 'Rahul Bhargava, Contour Powered by XDC Network',
-  discoverCtaLabel: 'Reserve your place',
+  discoverTitle: 'Discovery Stage Showcase: Contour',
+  discoverTheme: '',
+  discoverWhen: 'October 01, 2026',
+  discoverTime: '9:30 AM – 10:30 AM EDT',
+  discoverWhere: 'Discover Stage, Sibos Miami 2026 | Session Code: DS 33',
+  discoverWho: 'Rahul Bhargava, Interim Chief Operating Officer, Contour Network',
+  discoverCtaLabel: 'Register your place',
   discoverCtaUrl: 'https://luma.com/tnotpk0e',
   closing: 'Thank you and we look forward to meeting you at Sibos!',
   signOff: 'Regards,\nThe Contour Network Team',
@@ -1250,10 +1252,10 @@ export default function App() {
                   />
                 </label>
                 <label>
-                  Theme
+                  Panel line
                   <input
-                    value={content.breakfastTheme || ''}
-                    onChange={(e) => updateField('breakfastTheme', e.target.value)}
+                    value={content.breakfastWho || ''}
+                    onChange={(e) => updateField('breakfastWho', e.target.value)}
                   />
                 </label>
                 <div className="row-2">
@@ -1265,21 +1267,13 @@ export default function App() {
                     />
                   </label>
                   <label>
-                    Where
+                    Time
                     <input
-                      value={content.breakfastWhere || ''}
-                      onChange={(e) => updateField('breakfastWhere', e.target.value)}
+                      value={content.breakfastTime || ''}
+                      onChange={(e) => updateField('breakfastTime', e.target.value)}
                     />
                   </label>
                 </div>
-                <label>
-                  Who / panel
-                  <textarea
-                    rows={2}
-                    value={content.breakfastWho || ''}
-                    onChange={(e) => updateField('breakfastWho', e.target.value)}
-                  />
-                </label>
                 <label>
                   Seats note
                   <input
@@ -1314,13 +1308,6 @@ export default function App() {
                     onChange={(e) => updateField('discoverTitle', e.target.value)}
                   />
                 </label>
-                <label>
-                  Theme
-                  <input
-                    value={content.discoverTheme || ''}
-                    onChange={(e) => updateField('discoverTheme', e.target.value)}
-                  />
-                </label>
                 <div className="row-2">
                   <label>
                     When
@@ -1330,15 +1317,22 @@ export default function App() {
                     />
                   </label>
                   <label>
-                    Where
+                    Time
                     <input
-                      value={content.discoverWhere || ''}
-                      onChange={(e) => updateField('discoverWhere', e.target.value)}
+                      value={content.discoverTime || ''}
+                      onChange={(e) => updateField('discoverTime', e.target.value)}
                     />
                   </label>
                 </div>
                 <label>
-                  Who / speaker
+                  Where
+                  <input
+                    value={content.discoverWhere || ''}
+                    onChange={(e) => updateField('discoverWhere', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Speaker (Rahul)
                   <input
                     value={content.discoverWho || ''}
                     onChange={(e) => updateField('discoverWho', e.target.value)}
