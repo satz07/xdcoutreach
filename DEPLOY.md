@@ -13,6 +13,7 @@
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER` — SendGrid SMTP (`smtp.sendgrid.net`, `587`, user `apikey`)
 - `SENDGRID_SMTP_PASS` — SendGrid API key (password for SMTP)
 - `SENDGRID_FROM` — Contour From address, e.g. `events@contour.network`
+- `SENDGRID_FROM_NAME` — Inbox display name, e.g. `Contour Network`
 - `POSTMARK_SERVER_TOKEN` — Postmark Server API token (HTTPS; required on Railway for Sibos)
 - `MAIL_PROVIDER` — `postmark` default for legacy paths; events pick provider per-row
 - `POSTMARK_MESSAGE_STREAM` — transactional stream, default `outbound`

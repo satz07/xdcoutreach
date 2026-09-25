@@ -687,7 +687,11 @@ async function sendOneViaSmtpProvider(provider, { to, subject, html, text, fromN
   }
 
   const fromAddr = provider.from_email || process.env.SMTP_FROM;
-  const name = fromName || provider.from_name || 'XDC Network & Contour';
+  const name =
+    fromName ||
+    provider.from_name ||
+    process.env.SENDGRID_FROM_NAME ||
+    (isSendGridProvider(provider) ? 'Contour Network' : 'XDC Network & Contour');
   const from = `"${name}" <${fromAddr}>`;
   const port = Number(provider.smtp_port || 587);
   const secure = Boolean(provider.smtp_secure) || port === 465;
