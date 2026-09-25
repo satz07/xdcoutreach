@@ -1,8 +1,14 @@
 const express = require('express');
 const { pool } = require('../db/pool');
-const { sendOneEmail, sendCampaignEmails, sendOneVerifiedTransactional, parseRecipients } = require('../services/mailer');
+const { sendOneEmail, sendCampaignEmails, sendOneVerifiedTransactional, sendOneForEvent, parseRecipients } = require('../services/mailer');
 const { buildSibosEmailHtml } = require('../templates/sibosEmail');
 const { requireAuth, requireSuperAdmin, getRemainingQuota } = require('../middleware/auth');
+const {
+  listProviders,
+  getProviderById,
+  publicProvider,
+  ensureMailProvidersSeeded,
+} = require('../services/mailProviders');
 
 const router = express.Router();
 
@@ -29,10 +35,79 @@ router.get('/health/smtp', async (_req, res) => {
 
 router.use(requireAuth);
 
-/** List events */
+/** List mail providers (Postmark / SMTP profiles) — no secrets */
+router.get('/mail-providers', async (_req, res) => {
+  try {
+    await ensureMailProvidersSeeded();
+    res.json(await listProviders({ activeOnly: true }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Add an SMTP profile to the list */
+router.post('/mail-providers', requireSuperAdmin, async (req, res) => {
+  try {
+    const {
+      name,
+      slug,
+      type = 'smtp',
+      from_email,
+      from_name,
+      smtp_host,
+      smtp_port = 587,
+      smtp_secure = false,
+      smtp_user,
+      smtp_pass,
+      smtp_pass_env,
+      notes,
+    } = req.body || {};
+    if (!name || !slug || !from_email) {
+      return res.status(400).json({ error: 'name, slug, and from_email are required' });
+    }
+    if (type === 'smtp' && !smtp_host) {
+      return res.status(400).json({ error: 'smtp_host required for SMTP providers' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO mail_providers
+        (name, slug, type, from_email, from_name, smtp_host, smtp_port, smtp_secure,
+         smtp_user, smtp_pass, smtp_pass_env, notes, active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, TRUE)
+       RETURNING *`,
+      [
+        name,
+        slug,
+        type === 'postmark' ? 'postmark' : 'smtp',
+        from_email,
+        from_name || 'XDC Network & Contour',
+        smtp_host || null,
+        Number(smtp_port) || 587,
+        Boolean(smtp_secure),
+        smtp_user || null,
+        smtp_pass || null,
+        smtp_pass_env || null,
+        notes || null,
+      ]
+    );
+    res.status(201).json(publicProvider(rows[0]));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** List events (with mail provider) */
 router.get('/events', async (_req, res) => {
   try {
-    const { rows } = await pool.query(`SELECT * FROM events ORDER BY created_at DESC`);
+    const { rows } = await pool.query(
+      `SELECT e.*,
+              mp.name AS mail_provider_name,
+              mp.slug AS mail_provider_slug,
+              mp.type AS mail_provider_type,
+              mp.from_email AS mail_from_email
+       FROM events e
+       LEFT JOIN mail_providers mp ON mp.id = e.mail_provider_id
+       ORDER BY e.created_at DESC`
+    );
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -42,17 +117,31 @@ router.get('/events', async (_req, res) => {
 /** Create event + default invite template for that event */
 router.post('/events', async (req, res) => {
   try {
-    const { name, slug, location, dates } = req.body;
+    const { name, slug, location, dates, mail_provider_id } = req.body;
     if (!name || !slug) {
       return res.status(400).json({ error: 'name and slug are required' });
     }
+    if (!mail_provider_id) {
+      return res.status(400).json({
+        error: 'mail_provider_id is required — choose Postmark or an SMTP profile',
+      });
+    }
+    const provider = await getProviderById(Number(mail_provider_id));
+    if (!provider || !provider.active) {
+      return res.status(400).json({ error: 'Invalid or inactive mail provider' });
+    }
+
     const { rows } = await pool.query(
-      `INSERT INTO events (name, slug, location, dates)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO events (name, slug, location, dates, mail_provider_id)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [name, slug, location || null, dates || null]
+      [name, slug, location || null, dates || null, provider.id]
     );
     const event = rows[0];
+    event.mail_provider_name = provider.name;
+    event.mail_provider_slug = provider.slug;
+    event.mail_provider_type = provider.type;
+    event.mail_from_email = provider.from_email;
 
     const content = {
       headline: `Join XDC Network & Contour at ${name}`,
@@ -528,6 +617,7 @@ router.post('/send', async (req, res) => {
         html: htmlFinal,
         text: textFinal,
         broadcast: useBroadcast,
+        eventId,
       });
     } catch (err) {
       await pool.query(
@@ -787,6 +877,7 @@ router.post('/sends/send-selected', async (req, res) => {
       subject,
       html,
       broadcast: recipients.length > 1,
+      eventId: rows[0].event_id,
     });
 
     let success = 0;
@@ -1066,11 +1157,17 @@ router.post('/sends/send-verified', async (req, res) => {
 
     for (const row of rows) {
       try {
-        const r = await sendOneVerifiedTransactional({
-          to: row.recipient_email,
-          subject: row.subject,
-          html: row.html_body,
-        });
+        const r = row.event_id
+          ? await sendOneForEvent(row.event_id, {
+              to: row.recipient_email,
+              subject: row.subject,
+              html: row.html_body,
+            })
+          : await sendOneVerifiedTransactional({
+              to: row.recipient_email,
+              subject: row.subject,
+              html: row.html_body,
+            });
         if (r.status === 'sent') {
           success += 1;
           await pool.query(

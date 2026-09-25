@@ -518,11 +518,20 @@ async function sendOneEmail({ to, subject, html, text, includeLogos = true, from
  * Send one email on transactional (outbound) stream, then confirm it exists in
  * Postmark Activity before treating it as sent.
  */
-async function sendOneVerifiedTransactional({ to, subject, html, text, fromName }) {
-  const token = process.env.POSTMARK_SERVER_TOKEN;
+async function sendOneVerifiedTransactional({
+  to,
+  subject,
+  html,
+  text,
+  fromName,
+  fromEmail,
+  postmarkToken,
+}) {
+  const token = postmarkToken || process.env.POSTMARK_SERVER_TOKEN;
   if (!token) throw new Error('POSTMARK_SERVER_TOKEN not set');
 
-  const fromAddr = process.env.SMTP_FROM || process.env.OTP_EMAIL_FROM || process.env.SMTP_USER;
+  const fromAddr =
+    fromEmail || process.env.SMTP_FROM || process.env.OTP_EMAIL_FROM || process.env.SMTP_USER;
   const name = fromName || 'XDC Network & Contour';
   const from = `"${name}" <${fromAddr}>`;
   const htmlBody = htmlWithPublicLogos(html);
@@ -593,6 +602,83 @@ async function sendOneVerifiedTransactional({ to, subject, html, text, fromName 
   };
 }
 
+/** Send via a mail_providers SMTP row (e.g. SendGrid). Marks sent when SMTP accepts. */
+async function sendOneViaSmtpProvider(provider, { to, subject, html, text, fromName }) {
+  const { resolveSmtpPass } = require('./mailProviders');
+  const pass = resolveSmtpPass(provider);
+  if (!provider.smtp_host) throw new Error(`SMTP provider "${provider.name}" missing host`);
+  if (!provider.smtp_user || !pass) {
+    throw new Error(
+      `SMTP provider "${provider.name}" missing credentials. Set ${provider.smtp_pass_env || 'SMTP_PASS'} on the server.`
+    );
+  }
+
+  const fromAddr = provider.from_email || process.env.SMTP_FROM;
+  const name = fromName || provider.from_name || 'XDC Network & Contour';
+  const from = `"${name}" <${fromAddr}>`;
+  const port = Number(provider.smtp_port || 587);
+  const secure = Boolean(provider.smtp_secure) || port === 465;
+
+  const transporter = getTransporter({
+    host: provider.smtp_host,
+    port,
+    secure,
+    auth: { user: provider.smtp_user, pass },
+  });
+
+  const info = await transporter.sendMail({
+    from,
+    to,
+    subject,
+    html: htmlWithPublicLogos(html),
+    text: text || undefined,
+    attachments: resolveLogoAttachments(),
+  });
+
+  return {
+    email: to,
+    status: 'sent',
+    messageId: info.messageId || `smtp:${Date.now()}`,
+    provider: `smtp:${provider.slug || provider.name}`,
+    accepted: info.accepted,
+  };
+}
+
+/**
+ * Route one send through the event's configured mail provider.
+ * Postmark → Activity-verified; SMTP → accepted by server.
+ */
+async function sendOneForEvent(eventId, { to, subject, html, text, fromName }) {
+  const { getProviderForEvent, resolvePostmarkToken } = require('./mailProviders');
+  const provider = await getProviderForEvent(eventId);
+  if (!provider || !provider.id) {
+    throw new Error(
+      'No mail provider linked to this event. Choose Postmark or an SMTP profile when creating the event.'
+    );
+  }
+  if (provider.type === 'postmark') {
+    return sendOneVerifiedTransactional({
+      to,
+      subject,
+      html,
+      text,
+      fromName: fromName || provider.from_name,
+      fromEmail: provider.from_email,
+      postmarkToken: resolvePostmarkToken(provider),
+    });
+  }
+  if (provider.type === 'smtp') {
+    return sendOneViaSmtpProvider(provider, {
+      to,
+      subject,
+      html,
+      text,
+      fromName: fromName || provider.from_name,
+    });
+  }
+  throw new Error(`Unknown mail provider type: ${provider.type}`);
+}
+
 async function sendCampaignEmails({
   recipients,
   subject,
@@ -600,11 +686,33 @@ async function sendCampaignEmails({
   text,
   fromName,
   broadcast = false,
+  eventId = null,
 }) {
+  const list = Array.isArray(recipients) ? recipients : [];
+
+  // Event-scoped: always use that event's mail provider (Postmark or SMTP)
+  if (eventId) {
+    const results = [];
+    for (const to of list) {
+      try {
+        const r = await sendOneForEvent(eventId, { to, subject, html, text, fromName });
+        results.push(r);
+      } catch (err) {
+        results.push({ email: to, status: 'failed', error: err.message });
+      }
+    }
+    return {
+      provider: 'event-provider',
+      bulkIds: [],
+      results,
+      success: results.filter((r) => r.status === 'sent').length,
+      failure: results.filter((r) => r.status === 'failed').length,
+    };
+  }
+
   const fromAddr = process.env.SMTP_FROM || process.env.OTP_EMAIL_FROM || process.env.SMTP_USER;
   const name = fromName || 'XDC Network & Contour';
   const from = `"${name}" <${fromAddr}>`;
-  const list = Array.isArray(recipients) ? recipients : [];
   const threshold = Number(process.env.BROADCAST_THRESHOLD || 2);
   const useBroadcast = broadcast || list.length >= threshold;
 
@@ -666,6 +774,8 @@ module.exports = {
   getTransporter,
   sendOneEmail,
   sendOneVerifiedTransactional,
+  sendOneForEvent,
+  sendOneViaSmtpProvider,
   sendCampaignEmails,
   sendBroadcastEmails,
   parseRecipients,

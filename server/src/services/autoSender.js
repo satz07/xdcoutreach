@@ -1,5 +1,6 @@
 const { pool } = require('../db/pool');
-const { sendOneVerifiedTransactional } = require('./mailer');
+const { sendOneVerifiedTransactional, sendOneForEvent } = require('./mailer');
+const { getProviderForEvent } = require('./mailProviders');
 
 // Verified outbound is slower — default 10/min keeps headroom for Activity confirm
 const BATCH_SIZE = Number(process.env.AUTO_SEND_BATCH || 10);
@@ -293,10 +294,21 @@ async function processOneTick() {
     let success = 0;
     let failure = 0;
     const suppressions = await fetchSuppressions();
+    const providerCache = new Map();
 
     for (const row of rows) {
       const email = String(row.recipient_email || '').toLowerCase();
-      if (suppressions.has(email)) {
+
+      let provider = null;
+      if (row.event_id) {
+        if (!providerCache.has(row.event_id)) {
+          providerCache.set(row.event_id, await getProviderForEvent(row.event_id));
+        }
+        provider = providerCache.get(row.event_id);
+      }
+
+      // Postmark suppressions only apply to Postmark sends
+      if ((!provider || provider.type === 'postmark') && suppressions.has(email)) {
         failure += 1;
         await pool.query(
           `UPDATE email_sends
@@ -310,11 +322,17 @@ async function processOneTick() {
       }
 
       try {
-        const r = await sendOneVerifiedTransactional({
-          to: row.recipient_email,
-          subject: row.subject,
-          html: row.html_body,
-        });
+        const r = row.event_id
+          ? await sendOneForEvent(row.event_id, {
+              to: row.recipient_email,
+              subject: row.subject,
+              html: row.html_body,
+            })
+          : await sendOneVerifiedTransactional({
+              to: row.recipient_email,
+              subject: row.subject,
+              html: row.html_body,
+            });
         if (r.status === 'sent') {
           success += 1;
           await pool.query(
@@ -354,13 +372,13 @@ async function processOneTick() {
       claimed: rows.length,
       success,
       failure,
-      mode: 'outbound-verified',
+      mode: 'event-provider',
       firstId: rows[0].id,
       lastId: rows[rows.length - 1].id,
     };
     lastError = null;
     console.log(
-      `[auto-send] verified outbound ${rows.length}: ${success} sent, ${failure} failed/retry (ids ${rows[0].id}-${rows[rows.length - 1].id})`
+      `[auto-send] ${rows.length}: ${success} sent, ${failure} failed/retry (ids ${rows[0].id}-${rows[rows.length - 1].id})`
     );
     return lastTick;
   } catch (err) {

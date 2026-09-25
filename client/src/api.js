@@ -71,6 +71,9 @@ export const api = {
   deactivateUser: (id) => request(`/auth/users/${id}/deactivate`, { method: 'POST' }),
   events: () => request('/events'),
   createEvent: (body) => request('/events', { method: 'POST', body: JSON.stringify(body) }),
+  mailProviders: () => request('/mail-providers'),
+  createMailProvider: (body) =>
+    request('/mail-providers', { method: 'POST', body: JSON.stringify(body) }),
   participants: (eventId, params = {}) => {
     const q = new URLSearchParams(params).toString();
     return request(`/events/${eventId}/participants${q ? `?${q}` : ''}`);

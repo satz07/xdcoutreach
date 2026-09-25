@@ -199,6 +199,10 @@ async function ensureSchema() {
       ON CONFLICT (event_id, email) DO NOTHING
     `);
 
+    const { ensureMailProvidersSeeded } = require('./services/mailProviders');
+    await ensureMailProvidersSeeded(client);
+    console.log('Mail providers seeded (Postmark + SendGrid Contour)');
+
     const { hashPassword } = require('./middleware/auth');
     const superPass = process.env.SUPERADMIN_PASSWORD || 'ChangeMeNow!2026';
     const superHash = await hashPassword(superPass);

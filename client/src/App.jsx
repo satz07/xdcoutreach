@@ -166,7 +166,25 @@ export default function App() {
   const [participantBusy, setParticipantBusy] = useState(false);
   const [participantPaste, setParticipantPaste] = useState('');
 
-  const [newEvent, setNewEvent] = useState({ name: '', slug: '', location: '', dates: '' });
+  const [newEvent, setNewEvent] = useState({
+    name: '',
+    slug: '',
+    location: '',
+    dates: '',
+    mail_provider_id: '',
+  });
+  const [mailProviders, setMailProviders] = useState([]);
+  const [newSmtp, setNewSmtp] = useState({
+    name: '',
+    slug: '',
+    from_email: '',
+    smtp_host: 'smtp.sendgrid.net',
+    smtp_port: '587',
+    smtp_user: '',
+    smtp_pass: '',
+    notes: '',
+  });
+  const [smtpBusy, setSmtpBusy] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteLimit, setInviteLimit] = useState('');
@@ -226,9 +244,20 @@ export default function App() {
   const loadBase = useCallback(async () => {
     if (!user) return;
     try {
-      const [h, ev] = await Promise.all([api.health(), api.events()]);
+      const [h, ev, providers] = await Promise.all([
+        api.health(),
+        api.events(),
+        api.mailProviders().catch(() => []),
+      ]);
       setHealth(h);
       setEvents(ev);
+      setMailProviders(providers || []);
+      setNewEvent((prev) => {
+        if (prev.mail_provider_id) return prev;
+        const sendgrid = (providers || []).find((p) => p.slug === 'sendgrid-contour');
+        const fallback = sendgrid || (providers || []).find((p) => p.type === 'smtp') || providers?.[0];
+        return { ...prev, mail_provider_id: fallback ? String(fallback.id) : '' };
+      });
       setEventId((prev) => {
         if (prev && ev.some((e) => e.id === prev)) return prev;
         return ev[0]?.id || null;
@@ -632,12 +661,27 @@ export default function App() {
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/(^-|-$)/g, '');
-      const ev = await api.createEvent({ ...newEvent, slug });
+      if (!newEvent.mail_provider_id) {
+        setError('Choose a mail provider (Postmark or SMTP) for this event');
+        return;
+      }
+      const ev = await api.createEvent({
+        ...newEvent,
+        slug,
+        mail_provider_id: Number(newEvent.mail_provider_id),
+      });
       setEvents((prev) => [ev, ...prev]);
       setEventId(ev.id);
-      setNewEvent({ name: '', slug: '', location: '', dates: '' });
+      const sendgrid = mailProviders.find((p) => p.slug === 'sendgrid-contour');
+      setNewEvent({
+        name: '',
+        slug: '',
+        location: '',
+        dates: '',
+        mail_provider_id: sendgrid ? String(sendgrid.id) : newEvent.mail_provider_id,
+      });
       setNotice(
-        `Event "${ev.name}" created with its own template and empty participant list.`
+        `Event "${ev.name}" created · mail: ${ev.mail_provider_name || ev.mail_provider_type || 'set'}`
       );
       setTab('compose');
     } catch (err) {
@@ -645,6 +689,49 @@ export default function App() {
     }
   }
 
+  async function handleCreateSmtp(e) {
+    e.preventDefault();
+    if (!isSuperAdmin) return;
+    setSmtpBusy(true);
+    setError('');
+    try {
+      const slug =
+        newSmtp.slug ||
+        newSmtp.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '');
+      const created = await api.createMailProvider({
+        name: newSmtp.name,
+        slug,
+        type: 'smtp',
+        from_email: newSmtp.from_email,
+        smtp_host: newSmtp.smtp_host,
+        smtp_port: Number(newSmtp.smtp_port) || 587,
+        smtp_secure: false,
+        smtp_user: newSmtp.smtp_user,
+        smtp_pass: newSmtp.smtp_pass || undefined,
+        notes: newSmtp.notes || undefined,
+      });
+      setMailProviders((prev) => [...prev, created]);
+      setNewEvent((prev) => ({ ...prev, mail_provider_id: String(created.id) }));
+      setNewSmtp({
+        name: '',
+        slug: '',
+        from_email: '',
+        smtp_host: 'smtp.sendgrid.net',
+        smtp_port: '587',
+        smtp_user: '',
+        smtp_pass: '',
+        notes: '',
+      });
+      setNotice(`SMTP profile "${created.name}" added — select it when creating an event`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSmtpBusy(false);
+    }
+  }
   async function handleAddParticipant(e) {
     e?.preventDefault?.();
     if (!eventId || !participantEmail.trim()) return;
@@ -960,7 +1047,11 @@ export default function App() {
               <p>
                 Editing template for{' '}
                 <strong>{selectedEvent?.name || 'selected event'}</strong>
-                {templateId ? ` · template #${templateId}` : ''}.
+                {templateId ? ` · template #${templateId}` : ''}
+                {selectedEvent?.mail_provider_name
+                  ? ` · mail: ${selectedEvent.mail_provider_name}`
+                  : ''}
+                .
               </p>
             </div>
 
@@ -1695,6 +1786,12 @@ export default function App() {
                   <span>
                     {ev.location || '—'} · {ev.dates || '—'}
                   </span>
+                  <span>
+                    Mail:{' '}
+                    {ev.mail_provider_name || 'not set'}
+                    {ev.mail_provider_type ? ` (${ev.mail_provider_type})` : ''}
+                    {ev.mail_from_email ? ` · ${ev.mail_from_email}` : ''}
+                  </span>
                   <code>{ev.slug}</code>
                   {ev.id === eventId ? <em> · selected</em> : null}
                 </li>
@@ -1705,6 +1802,7 @@ export default function App() {
           <section className="panel">
             <div className="panel-head">
               <h2>Add event</h2>
+              <p>Pick which mail stack this event uses (Postmark for Sibos, SMTP for others).</p>
             </div>
             <form className="event-form" onSubmit={createEvent}>
               <label>
@@ -1737,15 +1835,132 @@ export default function App() {
                   onChange={(e) => setNewEvent({ ...newEvent, dates: e.target.value })}
                 />
               </label>
+              <label>
+                Mail provider
+                <select
+                  required
+                  value={newEvent.mail_provider_id}
+                  onChange={(e) =>
+                    setNewEvent({ ...newEvent, mail_provider_id: e.target.value })
+                  }
+                >
+                  <option value="">Select…</option>
+                  {mailProviders.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · {p.type}
+                      {p.from_email ? ` · ${p.from_email}` : ''}
+                      {p.type === 'smtp' && p.smtp_host ? ` · ${p.smtp_host}` : ''}
+                      {p.type === 'smtp' && !p.smtp_pass_set ? ' (set password on server)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="meta-line">
+                Sibos → Postmark. New events → usually SendGrid SMTP (Contour).
+              </p>
               <button className="primary" type="submit">
                 Create event
               </button>
             </form>
             <p className="hint-block">
-              Each event has its own email template, participant list, and send history. After
-              creating an event, use the Event dropdown (top bar), edit Compose, manage Participants,
-              then send from History.
+              Each event has its own template, participants, send history, and mail provider.
             </p>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <h2>Mail providers</h2>
+              <p>Profiles available when creating events.</p>
+            </div>
+            <ul className="event-list">
+              {mailProviders.map((p) => (
+                <li key={p.id}>
+                  <strong>{p.name}</strong>
+                  <span>
+                    {p.type}
+                    {p.from_email ? ` · from ${p.from_email}` : ''}
+                    {p.type === 'smtp' && p.smtp_host
+                      ? ` · ${p.smtp_host}:${p.smtp_port || 587}`
+                      : ''}
+                  </span>
+                  <span className="meta-line">
+                    {p.notes || ''}
+                    {p.type === 'smtp'
+                      ? p.smtp_pass_set
+                        ? ' · password OK'
+                        : ` · set ${p.smtp_pass_env || 'SMTP_PASS'} on server`
+                      : p.postmark_token_set
+                        ? ' · Postmark token OK'
+                        : ' · set POSTMARK_SERVER_TOKEN'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            {isSuperAdmin && (
+              <>
+                <div className="panel-head" style={{ marginTop: 20 }}>
+                  <h2>Add SMTP profile</h2>
+                </div>
+                <form className="event-form" onSubmit={handleCreateSmtp}>
+                  <label>
+                    Name
+                    <input
+                      required
+                      value={newSmtp.name}
+                      onChange={(e) => setNewSmtp({ ...newSmtp, name: e.target.value })}
+                      placeholder="SendGrid Contour"
+                    />
+                  </label>
+                  <label>
+                    From email
+                    <input
+                      required
+                      type="email"
+                      value={newSmtp.from_email}
+                      onChange={(e) => setNewSmtp({ ...newSmtp, from_email: e.target.value })}
+                      placeholder="support@contour.network"
+                    />
+                  </label>
+                  <label>
+                    SMTP host
+                    <input
+                      required
+                      value={newSmtp.smtp_host}
+                      onChange={(e) => setNewSmtp({ ...newSmtp, smtp_host: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Port
+                    <input
+                      value={newSmtp.smtp_port}
+                      onChange={(e) => setNewSmtp({ ...newSmtp, smtp_port: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Username
+                    <input
+                      required
+                      value={newSmtp.smtp_user}
+                      onChange={(e) => setNewSmtp({ ...newSmtp, smtp_user: e.target.value })}
+                      placeholder="apikey or xdc"
+                    />
+                  </label>
+                  <label>
+                    Password / API key
+                    <input
+                      type="password"
+                      value={newSmtp.smtp_pass}
+                      onChange={(e) => setNewSmtp({ ...newSmtp, smtp_pass: e.target.value })}
+                      placeholder="optional if set via env"
+                    />
+                  </label>
+                  <button className="primary" type="submit" disabled={smtpBusy}>
+                    {smtpBusy ? 'Saving…' : 'Add SMTP'}
+                  </button>
+                </form>
+              </>
+            )}
           </section>
         </main>
       )}
