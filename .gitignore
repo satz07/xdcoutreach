@@ -9,3 +9,4 @@ client/dist/
 .cursorindexingignore
 .vercel
 .railway
+.env*

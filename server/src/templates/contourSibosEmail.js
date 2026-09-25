@@ -60,7 +60,7 @@ function buildContourSibosEmailHtml(overrides = {}) {
     ctaMailtoSubject = 'Sibos 2026 - Meeting Request (Booth #DISS43)',
     ctaMailtoBody =
       'Hello,\n\nI would like to schedule a meeting with Contour Network at Sibos 2026 (Booth #DISS43).\n\nPreferred times:\n\nThank you.',
-    ctaLinkType = 'mailto',
+    ctaLinkType = 'gmail',
     breakfastTitle = 'Unlocking Velocity in Trade to Payments — Sibos Miami 2026',
     breakfastTheme = 'Unlocking Velocity in Trade to Payments',
     breakfastWhen = 'Tuesday, 29 September 2026 · 7:30 AM – 9:30 AM',
@@ -208,9 +208,9 @@ function buildContourSibosEmailHtml(overrides = {}) {
       <td align="center" style="padding:20px 10px;">
         <table role="presentation" class="email-shell" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #DDD5CA;">
 
-          <!-- Brand bar -->
+          <!-- Brand bar — light so Contour logo (dark mark) stays readable -->
           <tr>
-            <td bgcolor="#182752" style="background-color:#182752;padding:16px 24px;">
+            <td bgcolor="#F7F4EF" style="background-color:#F7F4EF;padding:16px 24px;border-bottom:1px solid #E6E0D8;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="left" valign="middle">
@@ -218,7 +218,7 @@ function buildContourSibosEmailHtml(overrides = {}) {
                       style="width:160px;max-width:55%;height:auto;display:block;border:0;"/>
                   </td>
                   <td align="right" valign="middle">
-                    <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#F6C3A8;font-weight:700;">
+                    <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#182752;font-weight:700;">
                       Sibos 2026
                     </p>
                   </td>
@@ -377,7 +377,7 @@ function defaultContourSibosContent() {
     ctaMailtoSubject: 'Sibos 2026 - Meeting Request (Booth #DISS43)',
     ctaMailtoBody:
       'Hello,\n\nI would like to schedule a meeting with Contour Network at Sibos 2026 (Booth #DISS43).\n\nPreferred times:\n\nThank you.',
-    ctaLinkType: 'mailto',
+    ctaLinkType: 'gmail',
     breakfastTitle: 'Unlocking Velocity in Trade to Payments — Sibos Miami 2026',
     breakfastTheme: 'Unlocking Velocity in Trade to Payments',
     breakfastWhen: 'Tuesday, 29 September 2026 · 7:30 AM – 9:30 AM',

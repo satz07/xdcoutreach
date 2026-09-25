@@ -98,7 +98,7 @@ const CONTOUR_DEFAULT_CONTENT = {
   ctaMailtoSubject: 'Sibos 2026 - Meeting Request (Booth #DISS43)',
   ctaMailtoBody:
     'Hello,\n\nI would like to schedule a meeting with Contour Network at Sibos 2026 (Booth #DISS43).\n\nPreferred times:\n\nThank you.',
-  ctaLinkType: 'mailto',
+  ctaLinkType: 'gmail',
   ctaLabel: 'Book a meeting',
 };
 
@@ -1231,11 +1231,11 @@ export default function App() {
                 <label>
                   Open meeting link in
                   <select
-                    value={content.ctaLinkType || 'mailto'}
+                    value={content.ctaLinkType || 'gmail'}
                     onChange={(e) => updateField('ctaLinkType', e.target.value)}
                   >
-                    <option value="mailto">Mail / Gmail app (best on mobile)</option>
                     <option value="gmail">Gmail website (desktop browser)</option>
+                    <option value="mailto">Mail / Gmail app (best on mobile)</option>
                   </select>
                 </label>
 
