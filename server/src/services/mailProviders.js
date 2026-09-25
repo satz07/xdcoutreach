@@ -112,6 +112,16 @@ async function ensureMailProvidersSeeded(client = pool) {
   );
 
   // SendGrid SMTP — Contour for new events
+  const sgFrom =
+    process.env.SENDGRID_FROM ||
+    process.env.CONTOUR_SMTP_FROM ||
+    'events@contour.network';
+  const sgHost = process.env.SMTP_HOST || 'smtp.sendgrid.net';
+  const sgPort = Number(process.env.SMTP_PORT || 587);
+  const sgSecure = String(process.env.SMTP_SECURE || 'false') === 'true' || sgPort === 465;
+  // SendGrid API keys require username "apikey"
+  const sgUser = process.env.SMTP_USER || 'apikey';
+
   await client.query(
     `INSERT INTO mail_providers
       (name, slug, type, from_email, from_name, smtp_host, smtp_port, smtp_secure,
@@ -130,14 +140,14 @@ async function ensureMailProvidersSeeded(client = pool) {
     [
       'SendGrid SMTP (Contour)',
       'sendgrid-contour',
-      'support@contour.network',
+      sgFrom,
       'XDC Network & Contour',
-      'smtp.sendgrid.net',
-      587,
-      false,
-      'xdc',
+      sgHost,
+      sgPort,
+      sgSecure,
+      sgUser,
       'SENDGRID_SMTP_PASS',
-      'SendGrid SMTP for non-Sibos events. Set SENDGRID_SMTP_PASS (API key / password) on the server.',
+      'SendGrid SMTP for non-Sibos events. From events@contour.network. Password = SENDGRID_SMTP_PASS.',
     ]
   );
 

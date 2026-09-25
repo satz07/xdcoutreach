@@ -10,16 +10,11 @@
 ### Railway (API)
 
 - `DATABASE_URL` — from Railway Postgres plugin
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
-- `CORS_ORIGINS` — e.g. `https://xdcoutreach.vercel.app`
-- `FRONTEND_URL` — same as Vercel URL (used in invite emails)
-- `APP_URL` — public Railway API URL (for absolute logo links in emails if needed)
-- `JWT_SECRET` — long random string (required for login sessions)
-- `SUPERADMIN_EMAIL` — default `satheesh@xinfin.org`
-- `SUPERADMIN_PASSWORD` — initial / reset password for the superadmin
-- `INVITE_TTL_DAYS` — optional, default `7`
-- `POSTMARK_SERVER_TOKEN` — Postmark Server API token (HTTPS; required on Railway)
-- `MAIL_PROVIDER` — `postmark` (default when token is set) or `smtp` for local Gmail
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER` — SendGrid SMTP (`smtp.sendgrid.net`, `587`, `apikey`)
+- `SENDGRID_SMTP_PASS` — SendGrid API key (password for SMTP)
+- `SENDGRID_FROM` — Contour From address, e.g. `events@contour.network`
+- `POSTMARK_SERVER_TOKEN` — Postmark Server API token (HTTPS; required on Railway for Sibos)
+- `MAIL_PROVIDER` — `postmark` default for legacy paths; events pick provider per-row
 - `POSTMARK_MESSAGE_STREAM` — transactional stream, default `outbound`
 - `POSTMARK_BROADCAST_STREAM` — bulk/marketing stream, default `broadcast` (create in Postmark if missing)
 - `POSTMARK_BULK_CHUNK` — recipients per bulk request (default `500`, max `2000`)
@@ -27,7 +22,7 @@
 - `MAX_RECIPIENTS_PER_SEND` — hard cap per campaign (default `10000`)
 - `AUTO_SEND_BATCH` — pending emails per auto-send tick (default `20`)
 - `AUTO_SEND_INTERVAL_MS` — ms between ticks (default `60000` = 1 min)
-- `SMTP_FROM` — From address only (must be a verified Postmark sender)
+- `SMTP_FROM` — Postmark From address (must be a verified Postmark sender)
 
 ### Auto-send (verified outbound)
 
