@@ -741,7 +741,15 @@ export default function App() {
     try {
       await api.addParticipants(eventId, { email: participantEmail.trim() });
       setParticipantEmail('');
-      setNotice('Participant added');
+      const queued = await api.queueParticipants(eventId);
+      setNotice(
+        `Participant added` +
+          (queued.queued
+            ? ` · ${queued.queued} queued as pending in Send History`
+            : queued.message
+              ? ` · ${queued.message}`
+              : '')
+      );
       loadParticipants();
     } catch (err) {
       setError(err.message);
@@ -757,10 +765,14 @@ export default function App() {
     try {
       const res = await api.addParticipants(eventId, { recipients: participantPaste });
       setParticipantPaste('');
+      const queued = await api.queueParticipants(eventId);
       setNotice(
         `Imported ${res.inserted || 0} new` +
           (res.updated ? `, updated ${res.updated}` : '') +
-          ` for ${selectedEvent?.name || 'event'}`
+          ` for ${selectedEvent?.name || 'event'}` +
+          (queued.queued
+            ? ` · ${queued.queued} pending in Send History`
+            : ' · nothing new to queue (already pending/sent?)')
       );
       loadParticipants();
     } catch (err) {
@@ -1326,16 +1338,23 @@ export default function App() {
               </button>
               <button
                 type="button"
-                className="ghost"
+                className="primary"
                 disabled={!eventId || !recipients.trim() || participantBusy}
+                title="Save to this event’s participant list AND create pending rows in Send History"
                 onClick={async () => {
                   setParticipantBusy(true);
+                  setError('');
                   try {
                     const res = await api.addParticipants(eventId, { recipients });
+                    const queued = await api.queueParticipants(eventId);
                     setNotice(
-                      `Saved ${res.inserted || 0} new participant(s) to ${selectedEvent?.name || 'event'}`
+                      `Saved ${res.inserted || 0} participant(s) to ${selectedEvent?.name || 'event'}` +
+                        (queued.queued
+                          ? ` · queued ${queued.queued} as pending in Send History`
+                          : ` · ${queued.message || 'no new pending (already pending/sent for this event)'}`)
                     );
                     loadParticipants();
+                    if (queued.queued) setTab('history');
                   } catch (err) {
                     setError(err.message);
                   } finally {
@@ -1343,7 +1362,7 @@ export default function App() {
                   }
                 }}
               >
-                Save recipients as participants
+                {participantBusy ? 'Saving…' : 'Save + queue to History'}
               </button>
             </div>
             <p className="meta-line">
