@@ -10,7 +10,7 @@
 ### Railway (API)
 
 - `DATABASE_URL` — from Railway Postgres plugin
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER` — SendGrid SMTP (`smtp.sendgrid.net`, `587`, `apikey`)
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER` — SendGrid SMTP (`smtp.sendgrid.net`, `587`, user `xdc`)
 - `SENDGRID_SMTP_PASS` — SendGrid API key (password for SMTP)
 - `SENDGRID_FROM` — Contour From address, e.g. `events@contour.network`
 - `POSTMARK_SERVER_TOKEN` — Postmark Server API token (HTTPS; required on Railway for Sibos)

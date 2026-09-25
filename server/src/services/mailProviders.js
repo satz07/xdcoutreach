@@ -119,8 +119,8 @@ async function ensureMailProvidersSeeded(client = pool) {
   const sgHost = process.env.SMTP_HOST || 'smtp.sendgrid.net';
   const sgPort = Number(process.env.SMTP_PORT || 587);
   const sgSecure = String(process.env.SMTP_SECURE || 'false') === 'true' || sgPort === 465;
-  // SendGrid API keys require username "apikey"
-  const sgUser = process.env.SMTP_USER || 'apikey';
+  // Contour SendGrid SMTP username is configured as "xdc"
+  const sgUser = process.env.SMTP_USER || 'xdc';
 
   await client.query(
     `INSERT INTO mail_providers
