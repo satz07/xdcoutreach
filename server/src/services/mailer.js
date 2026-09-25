@@ -602,15 +602,84 @@ async function sendOneVerifiedTransactional({
   };
 }
 
-/** Send via a mail_providers SMTP row (e.g. SendGrid). Marks sent when SMTP accepts. */
+/** SendGrid Web API (HTTPS) — preferred on Railway where SMTP ports are often blocked */
+async function sendViaSendGridApi(provider, { to, subject, html, text, fromName }) {
+  const { resolveSmtpPass } = require('./mailProviders');
+  const apiKey = resolveSmtpPass(provider);
+  if (!apiKey) {
+    throw new Error(
+      `SendGrid API key missing. Set ${provider.smtp_pass_env || 'SENDGRID_SMTP_PASS'} on the server.`
+    );
+  }
+  const fromEmail = provider.from_email || process.env.SENDGRID_FROM || 'events@contour.network';
+  const name = fromName || provider.from_name || 'XDC Network & Contour';
+  const htmlBody = htmlWithPublicLogos(html);
+
+  const payload = {
+    personalizations: [{ to: [{ email: to }] }],
+    from: { email: fromEmail, name },
+    subject,
+    content: [
+      ...(text ? [{ type: 'text/plain', value: text }] : []),
+      { type: 'text/html', value: htmlBody },
+    ],
+  };
+
+  const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (res.status === 202 || res.ok) {
+    const messageId = res.headers.get('x-message-id') || `sendgrid:${Date.now()}`;
+    return {
+      email: to,
+      status: 'sent',
+      messageId,
+      provider: `sendgrid-api:${provider.slug || 'contour'}`,
+      accepted: [to],
+    };
+  }
+
+  const body = await res.text().catch(() => '');
+  let msg = body;
+  try {
+    const j = JSON.parse(body);
+    msg = j.errors?.map((e) => e.message).join('; ') || body;
+  } catch (_) {
+    /* keep text */
+  }
+  throw new Error(msg || `SendGrid API failed (${res.status})`);
+}
+
+function isSendGridProvider(provider) {
+  const host = String(provider.smtp_host || '').toLowerCase();
+  const slug = String(provider.slug || '').toLowerCase();
+  return host.includes('sendgrid') || slug.includes('sendgrid');
+}
+
+/** Send via mail_providers SMTP row. SendGrid uses HTTPS API (SMTP often blocked on Railway). */
 async function sendOneViaSmtpProvider(provider, { to, subject, html, text, fromName }) {
   const { resolveSmtpPass } = require('./mailProviders');
   const pass = resolveSmtpPass(provider);
-  if (!provider.smtp_host) throw new Error(`SMTP provider "${provider.name}" missing host`);
-  if (!provider.smtp_user || !pass) {
+  if (!pass) {
     throw new Error(
       `SMTP provider "${provider.name}" missing credentials. Set ${provider.smtp_pass_env || 'SMTP_PASS'} on the server.`
     );
+  }
+
+  // SendGrid: always use Web API from cloud hosts
+  if (isSendGridProvider(provider)) {
+    return sendViaSendGridApi(provider, { to, subject, html, text, fromName });
+  }
+
+  if (!provider.smtp_host) throw new Error(`SMTP provider "${provider.name}" missing host`);
+  if (!provider.smtp_user) {
+    throw new Error(`SMTP provider "${provider.name}" missing smtp_user`);
   }
 
   const fromAddr = provider.from_email || process.env.SMTP_FROM;
