@@ -13,9 +13,66 @@ try {
 }
 
 const LOGOS_DIR = path.join(__dirname, '../../../public/logos');
+const EVENTS_DIR = path.join(__dirname, '../../../public/events');
 
-function ipv4Lookup(hostname, options, callback) {
-  dns.lookup(hostname, { ...options, family: 4 }, callback);
+function assetBaseUrl() {
+  return (process.env.APP_URL || process.env.FRONTEND_URL || '').replace(/\/$/, '');
+}
+
+/**
+ * Make outbound HTML inbox-safe:
+ * - Absolutize /logos and /events (and localhost) to APP_URL
+ * - Prefer cid: logo refs so inline attachments render like Compose preview
+ */
+function prepareOutboundHtml(html, { embedLogoCid = true } = {}) {
+  const base = assetBaseUrl();
+  let out = String(html || '');
+
+  if (base) {
+    out = out
+      .replace(/(src=["'])\/+(logos|events)\//gi, `$1${base}/$2/`)
+      .replace(
+        /(src=["'])https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\/(logos|events)\//gi,
+        `$1${base}/$2/`
+      );
+  }
+
+  if (embedLogoCid) {
+    out = out
+      .replace(/src=(["'])[^"']*\/logos\/xdc[^"']*\1/gi, 'src="cid:xdc-logo"')
+      .replace(/src=(["'])[^"']*\/logos\/contour[^"']*\1/gi, 'src="cid:contour-logo"');
+  } else if (base) {
+    out = out
+      .replace(/src=(["'])cid:xdc-logo\1/gi, `src="${base}/logos/xdc.png"`)
+      .replace(/src=(["'])cid:contour-logo\1/gi, `src="${base}/logos/contour.png"`)
+      .replace(/src=(["'])[^"']*\/logos\/xdc[^"']*\1/gi, `src="${base}/logos/xdc.png"`)
+      .replace(/src=(["'])[^"']*\/logos\/contour[^"']*\1/gi, `src="${base}/logos/contour.png"`);
+  }
+
+  return out;
+}
+
+function htmlWithPublicLogos(html) {
+  return prepareOutboundHtml(html, { embedLogoCid: false });
+}
+
+function postmarkInlineAttachments(files) {
+  return files.map((a) => ({
+    Name: a.filename,
+    Content: fs.readFileSync(a.path).toString('base64'),
+    ContentType: guessContentType(a.filename),
+    ContentID: `cid:${a.cid}`,
+  }));
+}
+
+function sendgridInlineAttachments(files) {
+  return files.map((a) => ({
+    content: fs.readFileSync(a.path).toString('base64'),
+    type: guessContentType(a.filename),
+    filename: a.filename,
+    disposition: 'inline',
+    content_id: a.cid,
+  }));
 }
 
 function smtpBaseOptions(overrides = {}) {
@@ -45,6 +102,10 @@ function smtpBaseOptions(overrides = {}) {
     lookup: ipv4Lookup,
     ...overrides,
   };
+}
+
+function ipv4Lookup(hostname, options, callback) {
+  dns.lookup(hostname, { ...options, family: 4 }, callback);
 }
 
 function getTransporter(overrides = {}) {
@@ -116,14 +177,6 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function htmlWithPublicLogos(html) {
-  const base = (process.env.APP_URL || process.env.FRONTEND_URL || '').replace(/\/$/, '');
-  if (!base) return html;
-  return String(html || '')
-    .replace(/cid:xdc-logo/gi, `${base}/logos/xdc.png`)
-    .replace(/cid:contour-logo/gi, `${base}/logos/contour.png`);
-}
-
 /**
  * Broadcast the same message to many recipients via Postmark Bulk API
  * (MessageStream: broadcast). Content+attachments sent once per chunk.
@@ -143,8 +196,8 @@ async function sendBroadcastEmails({
   const stream = process.env.POSTMARK_BROADCAST_STREAM || 'broadcast';
   const chunkSize = Math.min(Number(process.env.POSTMARK_BULK_CHUNK || 500), 2000);
   const delayMs = Number(process.env.POSTMARK_BULK_DELAY_MS || 250);
-  // Hosted logo URLs keep bulk payloads small (content sent once per chunk)
-  const htmlBody = htmlWithPublicLogos(html);
+  // Bulk API: hosted image URLs (no per-message attachments)
+  const htmlBody = prepareOutboundHtml(html, { embedLogoCid: false });
 
   const chunks = chunkArray(recipients, chunkSize);
   const results = [];
@@ -501,7 +554,7 @@ async function sendOneEmail({ to, subject, html, text, includeLogos = true, from
     from,
     to,
     subject,
-    html,
+    html: includeLogos ? prepareOutboundHtml(html, { embedLogoCid: true }) : html,
     text: text || undefined,
     attachments: includeLogos ? resolveLogoAttachments() : [],
   });
@@ -534,7 +587,8 @@ async function sendOneVerifiedTransactional({
     fromEmail || process.env.SMTP_FROM || process.env.OTP_EMAIL_FROM || process.env.SMTP_USER;
   const name = fromName || 'XDC Network & Contour';
   const from = `"${name}" <${fromAddr}>`;
-  const htmlBody = htmlWithPublicLogos(html);
+  const htmlBody = prepareOutboundHtml(html, { embedLogoCid: true });
+  const logoFiles = resolveLogoAttachments();
 
   const payload = {
     From: from,
@@ -543,6 +597,7 @@ async function sendOneVerifiedTransactional({
     HtmlBody: htmlBody,
     TextBody: text || undefined,
     MessageStream: process.env.POSTMARK_MESSAGE_STREAM || 'outbound',
+    Attachments: postmarkInlineAttachments(logoFiles),
   };
 
   const res = await fetch('https://api.postmarkapp.com/email', {
@@ -617,7 +672,8 @@ async function sendViaSendGridApi(provider, { to, subject, html, text, fromName 
     provider.from_name ||
     process.env.SENDGRID_FROM_NAME ||
     'Contour Network';
-  const htmlBody = htmlWithPublicLogos(html);
+  const htmlBody = prepareOutboundHtml(html, { embedLogoCid: true });
+  const logoFiles = resolveLogoAttachments();
 
   const payload = {
     personalizations: [{ to: [{ email: to }] }],
@@ -627,6 +683,7 @@ async function sendViaSendGridApi(provider, { to, subject, html, text, fromName 
       ...(text ? [{ type: 'text/plain', value: text }] : []),
       { type: 'text/html', value: htmlBody },
     ],
+    attachments: sendgridInlineAttachments(logoFiles),
   };
 
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
@@ -707,7 +764,7 @@ async function sendOneViaSmtpProvider(provider, { to, subject, html, text, fromN
     from,
     to,
     subject,
-    html: htmlWithPublicLogos(html),
+    html: prepareOutboundHtml(html, { embedLogoCid: true }),
     text: text || undefined,
     attachments: resolveLogoAttachments(),
   });
@@ -858,5 +915,7 @@ module.exports = {
   parseRecipients,
   resolveLogoAttachments,
   logoAttachments,
+  prepareOutboundHtml,
+  htmlWithPublicLogos,
   diagnoseSmtp,
 };

@@ -24,10 +24,23 @@ const router = express.Router();
 
 /** Pick email builder from content.templateKind (default: Sibos XDC). */
 function buildEventEmailHtml(content = {}) {
-  if (content.templateKind === 'contour-sibos') {
-    return buildContourSibosEmailHtml(content);
+  const base = (process.env.APP_URL || '').replace(/\/$/, '');
+  const withAssets = {
+    ...content,
+    // Always embed logos as CID for send/save; preview client overrides with hosted URLs
+    xdcLogoSrc: content.xdcLogoSrc || 'cid:xdc-logo',
+    contourLogoSrc: content.contourLogoSrc || 'cid:contour-logo',
+    ...(content.templateKind === 'contour-sibos' && base
+      ? {
+          assetBase: content.assetBase || `${base}/events/contour-sibos`,
+          logoSrc: content.logoSrc || content.contourLogoSrc || 'cid:contour-logo',
+        }
+      : {}),
+  };
+  if (withAssets.templateKind === 'contour-sibos') {
+    return buildContourSibosEmailHtml(withAssets);
   }
-  return buildSibosEmailHtml(content);
+  return buildSibosEmailHtml(withAssets);
 }
 
 /** SMTP health check (no email sent) — public */
