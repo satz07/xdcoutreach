@@ -612,7 +612,11 @@ async function sendViaSendGridApi(provider, { to, subject, html, text, fromName 
     );
   }
   const fromEmail = provider.from_email || process.env.SENDGRID_FROM || 'events@contour.network';
-  const name = fromName || provider.from_name || 'XDC Network & Contour';
+  const name =
+    fromName ||
+    provider.from_name ||
+    process.env.SENDGRID_FROM_NAME ||
+    'Contour Network';
   const htmlBody = htmlWithPublicLogos(html);
 
   const payload = {

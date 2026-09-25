@@ -116,6 +116,7 @@ async function ensureMailProvidersSeeded(client = pool) {
     process.env.SENDGRID_FROM ||
     process.env.CONTOUR_SMTP_FROM ||
     'events@contour.network';
+  const sgFromName = process.env.SENDGRID_FROM_NAME || 'Contour Network';
   const sgHost = process.env.SMTP_HOST || 'smtp.sendgrid.net';
   const sgPort = Number(process.env.SMTP_PORT || 587);
   const sgSecure = String(process.env.SMTP_SECURE || 'false') === 'true' || sgPort === 465;
@@ -141,13 +142,13 @@ async function ensureMailProvidersSeeded(client = pool) {
       'SendGrid SMTP (Contour)',
       'sendgrid-contour',
       sgFrom,
-      'XDC Network & Contour',
+      sgFromName,
       sgHost,
       sgPort,
       sgSecure,
       sgUser,
       'SENDGRID_SMTP_PASS',
-      'SendGrid SMTP for non-Sibos events. From events@contour.network. Password = SENDGRID_SMTP_PASS.',
+      'Contour SendGrid. Inbox shows From: Contour Network <events@contour.network>.',
     ]
   );
 
