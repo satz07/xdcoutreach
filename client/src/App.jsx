@@ -68,7 +68,7 @@ const CONTOUR_DEFAULT_CONTENT = {
   boothWhere: 'Miami Beach Convention Center',
   boothTime: '',
   boothCtaLabel: 'Book a meeting',
-  boothCtaUrl: '',
+  boothCtaUrl: 'https://calendly.com/rahul-contour',
   breakfastTitle: 'Industry networking breakfast and Experts Panel',
   breakfastTheme: '',
   breakfastWhen: 'September 29, 2026',
@@ -96,11 +96,10 @@ const CONTOUR_DEFAULT_CONTENT = {
   leadershipTitle: '',
   cta: '',
   disclaimer: '',
-  ctaEmail: 'Rahul@contour.network',
-  ctaMailtoSubject: 'Sibos 2026 - Meeting Request (Booth #DISS43)',
-  ctaMailtoBody:
-    'Hello,\n\nI would like to schedule a meeting with Contour Network at Sibos 2026 (Booth #DISS43).\n\nPreferred times:\n\nThank you.',
-  ctaLinkType: 'gmail',
+  ctaEmail: '',
+  ctaMailtoSubject: '',
+  ctaMailtoBody: '',
+  ctaLinkType: 'mailto',
   ctaLabel: 'Book a meeting',
 };
 
@@ -1192,12 +1191,11 @@ export default function App() {
                     />
                   </label>
                   <label>
-                    Meeting email (To)
+                    Book meeting URL (Calendly)
                     <input
-                      type="email"
-                      placeholder="Rahul@contour.network"
-                      value={content.ctaEmail || ''}
-                      onChange={(e) => updateField('ctaEmail', e.target.value)}
+                      placeholder="https://calendly.com/rahul-contour"
+                      value={content.boothCtaUrl || ''}
+                      onChange={(e) => updateField('boothCtaUrl', e.target.value)}
                     />
                   </label>
                 </div>
@@ -1214,31 +1212,6 @@ export default function App() {
                     value={content.boothCtaLabel || ''}
                     onChange={(e) => updateField('boothCtaLabel', e.target.value)}
                   />
-                </label>
-                <label>
-                  Meeting email subject
-                  <input
-                    value={content.ctaMailtoSubject || ''}
-                    onChange={(e) => updateField('ctaMailtoSubject', e.target.value)}
-                  />
-                </label>
-                <label>
-                  Meeting email body
-                  <textarea
-                    rows={3}
-                    value={content.ctaMailtoBody || ''}
-                    onChange={(e) => updateField('ctaMailtoBody', e.target.value)}
-                  />
-                </label>
-                <label>
-                  Open meeting link in
-                  <select
-                    value={content.ctaLinkType || 'gmail'}
-                    onChange={(e) => updateField('ctaLinkType', e.target.value)}
-                  >
-                    <option value="gmail">Gmail website (desktop browser)</option>
-                    <option value="mailto">Mail / Gmail app (best on mobile)</option>
-                  </select>
                 </label>
 
                 <p className="hint" style={{ margin: '12px 0 4px', fontWeight: 600 }}>

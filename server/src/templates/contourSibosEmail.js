@@ -3,10 +3,8 @@
  * Brand: Navy #182752 · Orange #F2661F · Cream #F7F4EF · Ink #1A2332
  * Contour logo: same CID asset as Sibos 2026 email (public/logos/contour.png → cid:contour-logo).
  * Other assets served from /events/contour-sibos/ (public URLs via APP_URL).
- * "Book a meeting" uses mailto (ctaEmail) — same pattern as Sibos XDC template.
+ * "Book a meeting" → Calendly (https://calendly.com/rahul-contour).
  */
-
-const { buildMeetingLink } = require('./sibosEmail');
 
 function escapeHtml(str = '') {
   return String(str)
@@ -56,12 +54,7 @@ function buildContourSibosEmailHtml(overrides = {}) {
     boothTime = '',
     boothBody = 'Schedule a private meeting with a Contour Network professional to discuss what’s next for your organization.',
     boothCtaLabel = 'Book a meeting',
-    boothCtaUrl = '',
-    ctaEmail = 'Rahul@contour.network',
-    ctaMailtoSubject = 'Sibos 2026 - Meeting Request (Booth #DISS43)',
-    ctaMailtoBody =
-      'Hello,\n\nI would like to schedule a meeting with Contour Network at Sibos 2026 (Booth #DISS43).\n\nPreferred times:\n\nThank you.',
-    ctaLinkType = 'gmail',
+    boothCtaUrl = 'https://calendly.com/rahul-contour',
     breakfastTitle = 'Industry networking breakfast and Experts Panel',
     breakfastTheme = '',
     breakfastWhen = 'September 29, 2026',
@@ -99,21 +92,7 @@ function buildContourSibosEmailHtml(overrides = {}) {
   const breakfastImg = breakfastImgSrc || img('breakfast.jpg');
   const discoverImg = discoverImgSrc || img('discover-stage.jpg');
 
-  // Prefer mailto from meeting email; only use boothCtaUrl if it's already mailto/http and not Calendly
-  const explicitCta =
-    boothCtaUrl &&
-    !/calendly\.com/i.test(boothCtaUrl) &&
-    /^(mailto:|https?:)/i.test(boothCtaUrl)
-      ? boothCtaUrl
-      : '';
-  const meetingHref =
-    explicitCta ||
-    buildMeetingLink({
-      email: ctaEmail,
-      subject: ctaMailtoSubject,
-      body: ctaMailtoBody,
-      type: ctaLinkType === 'gmail' ? 'gmail' : 'mailto',
-    });
+  const meetingHref = boothCtaUrl || 'https://calendly.com/rahul-contour';
 
   const signOffHtml = escapeHtml(signOff)
     .split('\n')
@@ -329,10 +308,11 @@ function buildContourSibosEmailHtml(overrides = {}) {
           <!-- Footer — text only, no logo (avoids wrong/oversized CID images) -->
           <tr>
             <td bgcolor="#182752" style="background-color:#182752;padding:22px 24px;">
-              <p style="margin:0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.7;color:#C9D3E8;">
+              <p style="margin:0 0 8px;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#C9D3E8;font-weight:600;">
+                ${escapeHtml(footerNote)}
+              </p>
+              <p style="margin:0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.7;">
                 <a href="https://www.contour.network" style="color:#F2661F;text-decoration:none;font-weight:700;">contour.network</a>
-                <span style="color:#6B7A99;">&nbsp;·&nbsp;</span>
-                <a href="mailto:Rahul@contour.network" style="color:#F6C3A8;text-decoration:none;">Book a meeting</a>
               </p>
             </td>
           </tr>
@@ -367,12 +347,7 @@ function defaultContourSibosContent() {
     boothBody:
       'Schedule a private meeting with a Contour Network professional to discuss what’s next for your organization.',
     boothCtaLabel: 'Book a meeting',
-    boothCtaUrl: '',
-    ctaEmail: 'Rahul@contour.network',
-    ctaMailtoSubject: 'Sibos 2026 - Meeting Request (Booth #DISS43)',
-    ctaMailtoBody:
-      'Hello,\n\nI would like to schedule a meeting with Contour Network at Sibos 2026 (Booth #DISS43).\n\nPreferred times:\n\nThank you.',
-    ctaLinkType: 'gmail',
+    boothCtaUrl: 'https://calendly.com/rahul-contour',
     breakfastTitle: 'Industry networking breakfast and Experts Panel',
     breakfastTheme: '',
     breakfastWhen: 'September 29, 2026',
