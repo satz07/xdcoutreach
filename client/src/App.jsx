@@ -491,7 +491,8 @@ export default function App() {
         event_id: eventId,
       });
       setNotice(
-        `Template saved for ${selectedEvent?.name || 'event'}. Updated ${sync.updated || 0} pending row(s).`
+        `Template saved for ${selectedEvent?.name || 'event'}. ` +
+          `Synced ${sync.updated || 0} pending/failed History row(s) — History sends will use this template.`
       );
       const tm = await api.templates(eventId);
       setTemplates(tm);

@@ -1,6 +1,7 @@
 const { pool } = require('../db/pool');
 const { sendOneVerifiedTransactional, sendOneForEvent } = require('./mailer');
 const { getProviderForEvent } = require('./mailProviders');
+const { contentForSendRow } = require('./eventTemplate');
 
 // Verified outbound is slower — default 10/min keeps headroom for Activity confirm
 const BATCH_SIZE = Number(process.env.AUTO_SEND_BATCH || 10);
@@ -295,6 +296,7 @@ async function processOneTick() {
     let failure = 0;
     const suppressions = await fetchSuppressions();
     const providerCache = new Map();
+    const templateCache = new Map();
 
     for (const row of rows) {
       const email = String(row.recipient_email || '').toLowerCase();
@@ -322,16 +324,23 @@ async function processOneTick() {
       }
 
       try {
+        const content = await contentForSendRow(row, templateCache);
+        if (content.fromTemplate) {
+          await pool.query(
+            `UPDATE email_sends SET subject = $1, html_body = $2 WHERE id = $3`,
+            [content.subject, content.html, row.id]
+          );
+        }
         const r = row.event_id
           ? await sendOneForEvent(row.event_id, {
               to: row.recipient_email,
-              subject: row.subject,
-              html: row.html_body,
+              subject: content.subject,
+              html: content.html,
             })
           : await sendOneVerifiedTransactional({
               to: row.recipient_email,
-              subject: row.subject,
-              html: row.html_body,
+              subject: content.subject,
+              html: content.html,
             });
         if (r.status === 'sent') {
           success += 1;

@@ -9,6 +9,11 @@ const {
   publicProvider,
   ensureMailProvidersSeeded,
 } = require('../services/mailProviders');
+const {
+  getLatestEventTemplate,
+  contentForSendRow,
+  syncEventQueueFromTemplate,
+} = require('../services/eventTemplate');
 
 const router = express.Router();
 
@@ -869,15 +874,32 @@ router.post('/sends/send-selected', async (req, res) => {
 
     const subject = rows[0].subject;
     const html = rows[0].html_body;
+    const eventId = rows[0].event_id;
     const recipients = rows.map((r) => r.recipient_email);
     const idByEmail = new Map(rows.map((r) => [r.recipient_email.toLowerCase(), r.id]));
 
+    // Prefer latest Compose template for this event
+    let subjectFinal = subject;
+    let htmlFinal = html;
+    if (eventId) {
+      const tpl = await getLatestEventTemplate(eventId);
+      if (tpl?.html_body) {
+        subjectFinal = tpl.subject || subject;
+        htmlFinal = tpl.html_body;
+        await pool.query(
+          `UPDATE email_sends SET subject = $1, html_body = $2
+           WHERE id = ANY($3::int[])`,
+          [subjectFinal, htmlFinal, rows.map((r) => r.id)]
+        );
+      }
+    }
+
     const campaignResult = await sendCampaignEmails({
       recipients,
-      subject,
-      html,
+      subject: subjectFinal,
+      html: htmlFinal,
       broadcast: recipients.length > 1,
-      eventId: rows[0].event_id,
+      eventId,
     });
 
     let success = 0;
@@ -1078,52 +1100,43 @@ router.delete('/sends/:id', requireSuperAdmin, async (req, res) => {
 });
 
 /**
- * Push latest template subject/html onto all pending queue rows.
- * Fixes "I saved the template but History still sends the old body".
+ * Push latest Compose template onto pending/failed History rows for this event.
  */
 router.post('/sends/sync-pending', async (req, res) => {
   try {
     let { subject, html_body, template_id, event_id } = req.body || {};
     let eventId = event_id ? Number(event_id) : null;
 
-    if (!subject || !html_body) {
-      const t = template_id
-        ? await pool.query(`SELECT * FROM email_templates WHERE id = $1`, [template_id])
-        : eventId
-          ? await pool.query(
-              `SELECT * FROM email_templates WHERE event_id = $1 ORDER BY is_default DESC, updated_at DESC LIMIT 1`,
-              [eventId]
-            )
-          : await pool.query(
-              `SELECT * FROM email_templates WHERE is_default = TRUE ORDER BY updated_at DESC LIMIT 1`
-            );
-      if (!t.rows[0]) {
-        return res.status(400).json({ error: 'No template found to sync from' });
-      }
-      subject = subject || t.rows[0].subject;
-      html_body = html_body || t.rows[0].html_body;
-      eventId = eventId || t.rows[0].event_id;
+    if (subject && html_body && eventId) {
+      const statuses = ['pending', 'failed'];
+      const { rowCount } = await pool.query(
+        `UPDATE email_sends
+         SET subject = $1, html_body = $2
+         WHERE event_id = $3 AND status = ANY($4::text[])`,
+        [subject, html_body, eventId, statuses]
+      );
+      await pool.query(
+        `UPDATE email_campaigns
+         SET subject = $1, html_body = $2
+         WHERE event_id = $3 AND status = 'pending'`,
+        [subject, html_body, eventId]
+      );
+      return res.json({ ok: true, updated: rowCount, subject, eventId });
     }
 
+    if (!eventId && template_id) {
+      const t = await pool.query(`SELECT event_id FROM email_templates WHERE id = $1`, [template_id]);
+      eventId = t.rows[0]?.event_id || null;
+    }
     if (!eventId) {
-      return res.status(400).json({ error: 'event_id required to sync pending without mixing events' });
+      return res.status(400).json({ error: 'event_id required to sync without mixing events' });
     }
 
-    const { rowCount } = await pool.query(
-      `UPDATE email_sends
-       SET subject = $1, html_body = $2
-       WHERE status = 'pending' AND event_id = $3`,
-      [subject, html_body, eventId]
-    );
-
-    await pool.query(
-      `UPDATE email_campaigns
-       SET subject = $1, html_body = $2
-       WHERE status = 'pending' AND event_id = $3`,
-      [subject, html_body, eventId]
-    );
-
-    res.json({ ok: true, updated: rowCount, subject, eventId });
+    const result = await syncEventQueueFromTemplate(eventId, { includeFailed: true });
+    if (!result.templateId && !subject) {
+      return res.status(400).json({ error: 'No template found for this event — save in Compose first' });
+    }
+    res.json({ ok: true, ...result, eventId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1154,19 +1167,28 @@ router.post('/sends/send-verified', async (req, res) => {
     const results = [];
     let success = 0;
     let failure = 0;
+    const templateCache = new Map();
 
     for (const row of rows) {
       try {
+        const content = await contentForSendRow(row, templateCache);
+        // Keep History row in sync with latest Compose template before send
+        if (content.fromTemplate) {
+          await pool.query(
+            `UPDATE email_sends SET subject = $1, html_body = $2 WHERE id = $3`,
+            [content.subject, content.html, row.id]
+          );
+        }
         const r = row.event_id
           ? await sendOneForEvent(row.event_id, {
               to: row.recipient_email,
-              subject: row.subject,
-              html: row.html_body,
+              subject: content.subject,
+              html: content.html,
             })
           : await sendOneVerifiedTransactional({
               to: row.recipient_email,
-              subject: row.subject,
-              html: row.html_body,
+              subject: content.subject,
+              html: content.html,
             });
         if (r.status === 'sent') {
           success += 1;
@@ -1187,7 +1209,7 @@ router.post('/sends/send-verified', async (req, res) => {
             [r.messageId || null, r.error || 'verify failed', row.id, req.user.id]
           );
         }
-        results.push({ id: row.id, ...r });
+        results.push({ id: row.id, ...r, usedTemplateId: content.templateId });
       } catch (err) {
         failure += 1;
         await pool.query(
