@@ -1,8 +1,12 @@
 /**
  * Contour Network @ Sibos Miami 2026 — invitation email.
  * Brand: Navy #182752 · Orange #F2661F · Cream #F7F4EF · Ink #1A2332
- * Assets served from /events/contour-sibos/ (public URLs via APP_URL).
+ * Contour logo: same CID asset as Sibos 2026 email (public/logos/contour.png → cid:contour-logo).
+ * Other assets served from /events/contour-sibos/ (public URLs via APP_URL).
+ * "Book a meeting" uses mailto (ctaEmail) — same pattern as Sibos XDC template.
  */
+
+const { buildMeetingLink } = require('./sibosEmail');
 
 function escapeHtml(str = '') {
   return String(str)
@@ -51,27 +55,34 @@ function buildContourSibosEmailHtml(overrides = {}) {
     boothWhere = 'Miami Beach Convention Center · Contour Network exhibitor booth (DISS43)',
     boothBody = 'Schedule a private meeting with a Contour Network professional to discuss what’s next for your organization.',
     boothCtaLabel = 'Book a meeting',
-    boothCtaUrl = 'https://calendly.com/rahul-contour',
-    breakfastTitle = 'Industry networking breakfast & Experts Panel',
-    breakfastTheme = 'Unlocking Velocity of Trade to Payments',
+    boothCtaUrl = '',
+    ctaEmail = 'Rahul@contour.network',
+    ctaMailtoSubject = 'Sibos 2026 - Meeting Request (Booth #DISS43)',
+    ctaMailtoBody =
+      'Hello,\n\nI would like to schedule a meeting with Contour Network at Sibos 2026 (Booth #DISS43).\n\nPreferred times:\n\nThank you.',
+    ctaLinkType = 'mailto',
+    breakfastTitle = 'Unlocking Velocity in Trade to Payments — Sibos Miami 2026',
+    breakfastTheme = 'Unlocking Velocity in Trade to Payments',
     breakfastWhen = 'Tuesday, 29 September 2026 · 7:30 AM – 9:30 AM',
     breakfastWhere = 'The Bass Art Museum (minutes from the Convention Center)',
     breakfastWho = 'Opening Bell: Institutional Breakfast with industry experts — seats are limited.',
     breakfastNote = 'Reserve your place early! Seats are limited!',
     breakfastCtaLabel = 'Reserve your place',
-    breakfastCtaUrl = 'https://luma.com/Unlockingvelocity',
-    discoverTitle = 'Discovery Stage Showcase: Contour',
-    discoverTheme = 'A Convergent Future: Digital Trade, Payments Optionality, Global Standards and AI',
+    breakfastCtaUrl = 'https://luma.com/lwtff9cg',
+    discoverTitle = 'Contour Showcase',
+    discoverTheme = 'A convergent future: Digital Trade, Payments Optionality, Global Standards and AI',
     discoverWhen = 'Thursday, 1 October 2026',
     discoverWhere = 'Sibos Discover Stage · Session DS 33',
     discoverWho = 'Rahul Bhargava, Contour Powered by XDC Network',
-    discoverCtaLabel = 'Register your place',
+    discoverCtaLabel = 'Reserve your place',
     discoverCtaUrl = 'https://luma.com/tnotpk0e',
     closing = 'Thank you and we look forward to meeting you at Sibos!',
     signOff = 'Regards,\nThe Contour Network Team',
     footerNote = 'Contour Network · Sibos Miami 2026 · Booth #DISS43',
     bannerSrc,
     logoSrc,
+    /** Same Contour mark as Sibos 2026 email (cid or preview URL). */
+    contourLogoSrc = 'cid:contour-logo',
     boothImgSrc,
     breakfastImgSrc,
     discoverImgSrc,
@@ -79,10 +90,27 @@ function buildContourSibosEmailHtml(overrides = {}) {
   } = overrides;
 
   const banner = bannerSrc || img('banner.jpg');
-  const logo = logoSrc || img('logo-white.png');
+  // Prefer Sibos Contour logo (CID /logos/contour.png); legacy logoSrc still honored
+  const logo = logoSrc || contourLogoSrc || 'cid:contour-logo';
   const boothImg = boothImgSrc || img('booth.jpg');
   const breakfastImg = breakfastImgSrc || img('breakfast.jpg');
   const discoverImg = discoverImgSrc || img('discover-stage.jpg');
+
+  // Prefer mailto from meeting email; only use boothCtaUrl if it's already mailto/http and not Calendly
+  const explicitCta =
+    boothCtaUrl &&
+    !/calendly\.com/i.test(boothCtaUrl) &&
+    /^(mailto:|https?:)/i.test(boothCtaUrl)
+      ? boothCtaUrl
+      : '';
+  const meetingHref =
+    explicitCta ||
+    buildMeetingLink({
+      email: ctaEmail,
+      subject: ctaMailtoSubject,
+      body: ctaMailtoBody,
+      type: ctaLinkType === 'gmail' ? 'gmail' : 'mailto',
+    });
 
   const signOffHtml = escapeHtml(signOff)
     .split('\n')
@@ -219,7 +247,7 @@ function buildContourSibosEmailHtml(overrides = {}) {
               <p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#C9D3E8;">
                 ${escapeHtml(location)}
               </p>
-              ${btn(boothCtaUrl, boothCtaLabel, { bg: '#F2661F', full: false })}
+              ${btn(meetingHref, boothCtaLabel, { bg: '#F2661F', full: false })}
             </td>
           </tr>
 
@@ -234,27 +262,6 @@ function buildContourSibosEmailHtml(overrides = {}) {
               <p style="margin:0 0 16px;font-weight:600;color:#182752;">${escapeHtml(greeting)}</p>
               <p style="margin:0 0 16px;">${escapeHtml(intro)}</p>
               <p style="margin:0;">${escapeHtml(upgrades)}</p>
-            </td>
-          </tr>
-
-          <!-- Upgrades highlight chips -->
-          <tr>
-            <td class="email-pad" style="padding:16px 24px 8px;background-color:#ffffff;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F7F4EF;border:1px solid #E6E0D8;">
-                <tr>
-                  <td style="padding:14px 16px;">
-                    <p style="margin:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#182752;font-weight:700;">
-                      Platform highlights
-                    </p>
-                    <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.7;color:#3A4A5C;">
-                      <span style="display:inline-block;margin:0 8px 6px 0;padding:4px 10px;background-color:#ffffff;border:1px solid #DDD5CA;border-radius:4px;color:#182752;font-weight:600;">AI document assistance</span>
-                      <span style="display:inline-block;margin:0 8px 6px 0;padding:4px 10px;background-color:#ffffff;border:1px solid #DDD5CA;border-radius:4px;color:#182752;font-weight:600;">TradeTrust</span>
-                      <span style="display:inline-block;margin:0 8px 6px 0;padding:4px 10px;background-color:#ffffff;border:1px solid #DDD5CA;border-radius:4px;color:#182752;font-weight:600;">GLEIF</span>
-                      <span style="display:inline-block;margin:0 8px 6px 0;padding:4px 10px;background-color:#ffffff;border:1px solid #DDD5CA;border-radius:4px;color:#182752;font-weight:600;">Stablecoin settlements</span>
-                    </p>
-                  </td>
-                </tr>
-              </table>
             </td>
           </tr>
 
@@ -283,7 +290,7 @@ function buildContourSibosEmailHtml(overrides = {}) {
                   where: boothWhere,
                   who: '',
                   note: '',
-                  ctaUrl: boothCtaUrl,
+                  ctaUrl: meetingHref,
                   ctaLabel: boothCtaLabel,
                 })}
                 ${programCard({
@@ -331,7 +338,7 @@ function buildContourSibosEmailHtml(overrides = {}) {
               <p style="margin:0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:12px;">
                 <a href="https://www.contour.network" style="color:#F2661F;text-decoration:none;font-weight:700;">contour.network</a>
                 &nbsp;·&nbsp;
-                <a href="https://calendly.com/rahul-contour" style="color:#F6C3A8;text-decoration:none;">Book a meeting</a>
+                <a href="${escapeHtml(meetingHref)}" style="color:#F6C3A8;text-decoration:none;">Book a meeting</a>
               </p>
             </td>
           </tr>
@@ -365,23 +372,28 @@ function defaultContourSibosContent() {
     boothBody:
       'Schedule a private meeting with a Contour Network professional to discuss what’s next for your organization.',
     boothCtaLabel: 'Book a meeting',
-    boothCtaUrl: 'https://calendly.com/rahul-contour',
-    breakfastTitle: 'Industry networking breakfast & Experts Panel',
-    breakfastTheme: 'Unlocking Velocity of Trade to Payments',
+    boothCtaUrl: '',
+    ctaEmail: 'Rahul@contour.network',
+    ctaMailtoSubject: 'Sibos 2026 - Meeting Request (Booth #DISS43)',
+    ctaMailtoBody:
+      'Hello,\n\nI would like to schedule a meeting with Contour Network at Sibos 2026 (Booth #DISS43).\n\nPreferred times:\n\nThank you.',
+    ctaLinkType: 'mailto',
+    breakfastTitle: 'Unlocking Velocity in Trade to Payments — Sibos Miami 2026',
+    breakfastTheme: 'Unlocking Velocity in Trade to Payments',
     breakfastWhen: 'Tuesday, 29 September 2026 · 7:30 AM – 9:30 AM',
     breakfastWhere: 'The Bass Art Museum (minutes from the Convention Center)',
     breakfastWho:
       'Opening Bell: Institutional Breakfast with industry experts — seats are limited.',
     breakfastNote: 'Reserve your place early! Seats are limited!',
     breakfastCtaLabel: 'Reserve your place',
-    breakfastCtaUrl: 'https://luma.com/Unlockingvelocity',
-    discoverTitle: 'Discovery Stage Showcase: Contour',
+    breakfastCtaUrl: 'https://luma.com/lwtff9cg',
+    discoverTitle: 'Contour Showcase',
     discoverTheme:
-      'A Convergent Future: Digital Trade, Payments Optionality, Global Standards and AI',
+      'A convergent future: Digital Trade, Payments Optionality, Global Standards and AI',
     discoverWhen: 'Thursday, 1 October 2026',
     discoverWhere: 'Sibos Discover Stage · Session DS 33',
     discoverWho: 'Rahul Bhargava, Contour Powered by XDC Network',
-    discoverCtaLabel: 'Register your place',
+    discoverCtaLabel: 'Reserve your place',
     discoverCtaUrl: 'https://luma.com/tnotpk0e',
     closing: 'Thank you and we look forward to meeting you at Sibos!',
     signOff: 'Regards,\nThe Contour Network Team',

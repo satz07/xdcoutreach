@@ -67,22 +67,22 @@ const CONTOUR_DEFAULT_CONTENT = {
   boothWhen: '28 September – 1 October, 2026',
   boothWhere: 'Miami Beach Convention Center · Contour Network exhibitor booth (DISS43)',
   boothCtaLabel: 'Book a meeting',
-  boothCtaUrl: 'https://calendly.com/rahul-contour',
-  breakfastTitle: 'Industry networking breakfast & Experts Panel',
-  breakfastTheme: 'Unlocking Velocity of Trade to Payments',
+  boothCtaUrl: '',
+  breakfastTitle: 'Unlocking Velocity in Trade to Payments — Sibos Miami 2026',
+  breakfastTheme: 'Unlocking Velocity in Trade to Payments',
   breakfastWhen: 'Tuesday, 29 September 2026 · 7:30 AM – 9:30 AM',
   breakfastWhere: 'The Bass Art Museum (minutes from the Convention Center)',
   breakfastWho: 'Opening Bell: Institutional Breakfast with industry experts — seats are limited.',
   breakfastNote: 'Reserve your place early! Seats are limited!',
   breakfastCtaLabel: 'Reserve your place',
-  breakfastCtaUrl: 'https://luma.com/Unlockingvelocity',
-  discoverTitle: 'Discovery Stage Showcase: Contour',
+  breakfastCtaUrl: 'https://luma.com/lwtff9cg',
+  discoverTitle: 'Contour Showcase',
   discoverTheme:
-    'A Convergent Future: Digital Trade, Payments Optionality, Global Standards and AI',
+    'A convergent future: Digital Trade, Payments Optionality, Global Standards and AI',
   discoverWhen: 'Thursday, 1 October 2026',
   discoverWhere: 'Sibos Discover Stage · Session DS 33',
   discoverWho: 'Rahul Bhargava, Contour Powered by XDC Network',
-  discoverCtaLabel: 'Register your place',
+  discoverCtaLabel: 'Reserve your place',
   discoverCtaUrl: 'https://luma.com/tnotpk0e',
   closing: 'Thank you and we look forward to meeting you at Sibos!',
   signOff: 'Regards,\nThe Contour Network Team',
@@ -94,9 +94,10 @@ const CONTOUR_DEFAULT_CONTENT = {
   leadershipTitle: '',
   cta: '',
   disclaimer: '',
-  ctaEmail: 'events@contour.network',
-  ctaMailtoSubject: '',
-  ctaMailtoBody: '',
+  ctaEmail: 'Rahul@contour.network',
+  ctaMailtoSubject: 'Sibos 2026 - Meeting Request (Booth #DISS43)',
+  ctaMailtoBody:
+    'Hello,\n\nI would like to schedule a meeting with Contour Network at Sibos 2026 (Booth #DISS43).\n\nPreferred times:\n\nThank you.',
   ctaLinkType: 'mailto',
   ctaLabel: 'Book a meeting',
 };
@@ -528,6 +529,10 @@ export default function App() {
       const contentForSave = {
         ...contentPayload,
         solutions: parseSolutions(content.solutionsText),
+        // Embed same logos as Sibos 2026 send (CID → public/logos/contour.png)
+        xdcLogoSrc: 'cid:xdc-logo',
+        contourLogoSrc: 'cid:contour-logo',
+        logoSrc: undefined,
       };
       const { html } = await api.preview(contentForSave);
       await api.updateTemplate(templateId, {
@@ -566,6 +571,7 @@ export default function App() {
         ...contentPayload,
         xdcLogoSrc: 'cid:xdc-logo',
         contourLogoSrc: 'cid:contour-logo',
+        logoSrc: undefined,
       });
 
       // Persist latest edits before send
@@ -1184,10 +1190,12 @@ export default function App() {
                     />
                   </label>
                   <label>
-                    Book meeting URL
+                    Meeting email (To)
                     <input
-                      value={content.boothCtaUrl || ''}
-                      onChange={(e) => updateField('boothCtaUrl', e.target.value)}
+                      type="email"
+                      placeholder="Rahul@contour.network"
+                      value={content.ctaEmail || ''}
+                      onChange={(e) => updateField('ctaEmail', e.target.value)}
                     />
                   </label>
                 </div>
@@ -1204,6 +1212,31 @@ export default function App() {
                     value={content.boothCtaLabel || ''}
                     onChange={(e) => updateField('boothCtaLabel', e.target.value)}
                   />
+                </label>
+                <label>
+                  Meeting email subject
+                  <input
+                    value={content.ctaMailtoSubject || ''}
+                    onChange={(e) => updateField('ctaMailtoSubject', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Meeting email body
+                  <textarea
+                    rows={3}
+                    value={content.ctaMailtoBody || ''}
+                    onChange={(e) => updateField('ctaMailtoBody', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Open meeting link in
+                  <select
+                    value={content.ctaLinkType || 'mailto'}
+                    onChange={(e) => updateField('ctaLinkType', e.target.value)}
+                  >
+                    <option value="mailto">Mail / Gmail app (best on mobile)</option>
+                    <option value="gmail">Gmail website (desktop browser)</option>
+                  </select>
                 </label>
 
                 <p className="hint" style={{ margin: '12px 0 4px', fontWeight: 600 }}>

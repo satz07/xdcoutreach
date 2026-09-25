@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--====== Required meta tags ======-->
+<meta charset="utf-8">
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<!--====== Title ======-->
+<title>Contour Network at Sibos Miami 2026</title>
+<meta name="description" content="Experience the world's leading digital trade finance network with Contour.">
+<!--====== Favicon Icon ======-->
+<link rel="icon" type="image/png" href="assets/img/favicon/favicon-96x96.png" sizes="96x96" />
+<link rel="icon" type="image/svg+xml" href="assets/img/favicon/favicon.svg" />
+<link rel="shortcut icon" href="assets/img/favicon/favicon.ico" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/img/favicon/apple-touch-icon.png" />
+<link rel="manifest" href="assets/img/favicon/site.webmanifest" />
+
+<!--====== CSS Style ======-->
+<style>
+  :root{
+    --navy:#182752;
+    --navy-deep:#101b3d;
+    --blue:#204d82;
+    --orange:#f2661f;
+    --orange-dark:#d94f0d;
+    --ink:#0E1A2B;
+    --ink-soft:#16273D;
+    --paper:#F6F4EE;
+    --paper-alt:#EDEAE0;
+    --gold:#C9A227;
+    --gold-soft:#E4C766;
+    --teal:#1F8A70;
+    --line:#D8D3C8;
+    --text-muted:#5B6472;
+    --text-on-ink:#E9E6DC;
+    --text-on-ink-muted:#9FAEC2;
+    --grey:#5c6270;
+    --white:#ffffff;
+    --maxw:1180px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;scroll-padding-top:39px;}
+  #about,#events,#sessions{scroll-margin-top:39px;}
+  body{
+    margin:0;
+    font-family:'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    color:var(--ink);
+    background:var(--white);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none;}
+  img{max-width:100%;display:block;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 32px;}
+  .btn-primary{
+    display:inline-block;background:var(--gold);color:var(--ink);
+    text-decoration:none;font-weight:600;font-size:15px;
+    padding:14px 28px;border-radius:var(--radius);
+  }
+  .btn-primary:hover{background:var(--gold-soft);}
+
+  /* ---------- Skip link ---------- */
+  .skip-link{position:absolute;left:-999px;top:0;background:var(--navy);color:#fff;padding:10px 18px;z-index:999;}
+  .skip-link:focus{left:12px;top:12px;}
+
+  /* ---------- Header ---------- */
+  header.site-header{
+    background:var(--white);
+    border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:50;
+  }
+  .nav-row{display:flex;align-items:center;justify-content:space-between;padding:14px 32px;gap:24px;}
+  .brand{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .brand img{height:50px;width:auto;}
+  nav.primary-nav{display:flex;gap:40px;flex-wrap:wrap;}
+  nav.primary-nav a{
+    font-size:14.5px;font-weight:600;color:var(--navy);
+    padding:6px 0;
+    transition:border-color .15s ease, color .15s ease;
+  }
+  nav.primary-nav a:hover{color:var(--orange-dark);}
+  .nav-cta{
+    display:inline-block;background:var(--orange);color:#fff;
+    font-size:13.5px;font-weight:700;padding:10px 20px;border-radius:2px;
+    letter-spacing:.2px;flex-shrink:0;
+    transition:background .15s ease;
+  }
+  .nav-cta:hover{background:var(--orange-dark);}
+  .nav-toggle{display:none;background:none;border:0;cursor:pointer;padding:6px;}
+  .nav-toggle span{display:block;width:24px;height:2px;background:var(--navy);margin:5px 0;}
+
+  @media (max-width:900px){
+    nav.primary-nav{
+      display:none;position:absolute;left:0;right:0;top:100%;
+      background:#fff;flex-direction:column;gap:0;
+      border-bottom:1px solid var(--line);padding:8px 32px 16px;
+    }
+    nav.primary-nav.open{display:flex;}
+    nav.primary-nav a{padding:10px 0;border-bottom:1px solid var(--line);}
+    .nav-toggle{display:block;}
+    .nav-row{position:relative;}
+  }
+
+  /* ---------- Hero ---------- */
+  .hero{
+    position:relative;
+    background:linear-gradient(90deg,rgba(0,51,141,.88),rgba(0,51,141,.88) 48%,rgba(0,51,141,0)), url('assets/img/sibos-miami-city-skyline-banner.jpg');
+    background-size: cover;
+    background-position: right bottom 10%;
+    color:#fff;
+    padding:60px 0 60px;
+    align-items:center;
+  }
+  .hero .wrap{position:relative;z-index:2;}
+  .hero-eyebrow{
+    display:inline-block;font-size:13px;font-weight:700;letter-spacing:.4px;
+    color:#ffd8bd;background:rgba(242,102,31,.16);border:1px solid rgba(242,102,31,.5);
+    padding:6px 14px;border-radius:2px;margin-bottom:22px;
+  }
+  .hero h1{
+    font-size:clamp(32px,4.6vw,52px);
+    line-height:1.08;
+    margin:0 0 16px;
+    font-weight:600;
+    max-width:50%;
+  }
+  .hero p.lede{
+    font-size:26px;
+    color:#dbe1ef;
+    max-width:50%;
+    margin:0px;
+    font-weight:400;
+  }
+  @media (max-width:768px){
+    .hero h1{max-width:100%;}
+    .hero p.lede{max-width:100%;line-height: 32px;}
+    h2.section-title{font-size: 30px !important;line-height: 34px;}
+  }
+  .btn{
+    display:inline-block;background:var(--orange);color:#fff;font-weight:700;
+    font-size:15px;padding:14px 30px;border-radius:2px;transition:background .15s ease, transform .15s ease;
+  }
+  .btn:hover{background:var(--orange-dark);transform:translateY(-1px);}
+  .btn.btn-outline{background:transparent;border:1.5px solid #fff;color:#fff;}
+  .btn.btn-outline:hover{background:#fff;color:var(--navy);}
+
+  /* ---------- INTRO STRIP ---------- */
+  .intro{
+    background:var(--paper-alt);
+    border-bottom:1px solid var(--line);
+  }
+  .intro-inner{
+    display:grid;grid-template-columns:1px 1fr;gap:28px;
+  }
+  .intro-inner .rule{background:var(--gold);}
+  .intro p{
+    margin:0;font-size:19px;line-height:1.7;color:var(--ink);
+  }
+  .intro p.lede{font-weight:600;font-family:'Space Grotesk',sans-serif;font-size:18px;margin-bottom:16px;}
+  .intro p + p{margin-top:16px;color:var(--text-muted);font-size:18px;}
+
+  h2.section-title{
+    font-size:36px;font-weight:600;margin:0 0 10px;color:var(--ink);
+  }
+  p.section-dek{
+    color:var(--text-muted);font-size:18px;margin:0 0 44px;;
+  }
+
+  /* ---------- Section shell ---------- */
+  section{padding:60px 0;}
+  section.alt{background:var(--cream);}
+  .section-head{max-width:640px;margin:0 0 40px;}
+  .section-head h2{
+    font-size:clamp(26px,3vw,34px);margin:0 0 10px;color:var(--navy);font-weight:800;
+    letter-spacing:-.2px;
+  }
+  .section-head p{color:var(--grey);font-size:16px;margin:0;}
+  hr.divider{border:0;border-top:1px solid var(--line);margin:0;}
+
+  /* ---------- EVENTS GRID ---------- */
+  .timeline{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:32px;align-items:stretch;
+  }
+  @media (max-width:900px){
+    .timeline{grid-template-columns:1fr 1fr;}
+  }
+  @media (max-width:640px){
+    .timeline{
+      display:flex;
+      grid-template-columns:unset;
+      overflow-x:auto;
+      overflow-y:hidden;
+      scroll-snap-type:x mandatory;
+      -webkit-overflow-scrolling:touch;
+      scrollbar-width:none;
+      gap:0;
+      margin-left:0;
+      margin-right:0;
+      padding:4px 0 6px;
+    }
+    .timeline::-webkit-scrollbar{display:none;}
+    .event{
+      flex:0 0 100%;
+      scroll-snap-align:center;
+    }
+  }
+  .event{
+    position:relative;
+  }
+  .event-dots{
+    display:none;
+    justify-content:center;
+    align-items:center;
+    gap:9px;
+    margin-top:22px;
+  }
+  @media (max-width:640px){
+    .event-dots{display:flex;}
+  }
+  .event-dots .dot{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--line);border:none;padding:0;
+    cursor:pointer;transition:background .15s ease,transform .15s ease;
+  }
+  .event-dots .dot.active{
+    background:var(--orange);transform:scale(1.25);
+  }
+  .event-card{
+    display:flex;flex-direction:column;height:100%;
+    background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+  }
+  .event-details{padding:20px;padding-bottom:0px;display:flex;flex-direction:column;flex:1;}
+  .event-date{
+    font-size:14px;color:var(--teal);font-weight:600;letter-spacing:0.02em;margin-bottom:10px;
+  }
+  .event-card h3{
+    font-size:20px;margin:0 0 12px;font-weight:600;line-height:1.3;
+  }
+  .event-card p{margin:0 0 14px;color:var(--text-muted);font-size:18px;}
+  @media (max-width: 640px) {
+    .nav-row{gap:14px;}
+    .brand img{height:44px;}
+    .nav-cta{padding: 10px 10px;}
+    .wrap{padding:20px;padding-top: 0px;padding-bottom: 0px;}
+    .site-header .wrap{padding-top:20px;padding-bottom:20px;}
+    .event-card h3 {font-size: 18px;}
+    .event-card p{font-size:16px;line-height: 20px;}
+  }
+  .event-card p:last-child{margin-bottom:0px;}
+  .event-meta{font-size:15px;color:var(--ink);margin:0 0 18px;}
+  .event-meta strong{display:block;font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;color:var(--text-muted);text-transform:none;margin-bottom:2px;}
+.event-link {
+    display: inline-block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    text-decoration: none;
+    text-transform: uppercase;
+    align-self: flex-start;
+    margin: 22px 26px 0;
+    border: 1.5px solid var(--orange);
+    border-radius: var(--radius);
+    padding: 11px 22px;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+  .event-link:hover{background-color:var(--orange);color:var(--white);}
+  .event-photo{
+    width:100%;
+    height:auto;
+    object-fit:cover;
+    border-radius:0;
+    background:var(--paper-alt);
+  }
+
+  /* ---------- CLOSING CTA ---------- */
+  .closing{
+    background: var(--white);
+    color:var(--ink);
+  }
+  .closing-inner{
+    display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;
+  }
+  .closing h2{font-size:26px;margin:0;max-width:60%;font-weight:600;}
+  @media (max-width:600px){.closing h2{max-width:100%;}}
+  .closing .btn-primary{background:var(--ink);color:var(--text-on-ink);}
+  .closing .btn-primary:hover{background:var(--ink-soft);}
+
+  .disclaimer{
+    font-size:13.5px;color:var(--text-muted);border-top:1px solid var(--line);padding-top:28px;margin-top:8px;
+  }
+
+  /* ---------- Footer ---------- */
+  footer.site-footer{background:var(--navy-deep);color:#c9cee0;padding:56px 0 26px;}
+  .footer-top{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:40px;margin-bottom:40px;}
+  @media (max-width:800px){.footer-top{grid-template-columns:1fr 1fr;row-gap:32px;}}
+  @media (max-width:480px){.footer-top{grid-template-columns:1fr;}}
+  .footer-brand img{height:34px;margin-bottom:14px;}
+  .footer-brand p{font-size:13.5px;color:#96a0bc;margin:0;}
+  .footer-col ul li{font-size:14px;color:#96a0bc;}
+  footer h5{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:#fff;margin:0 0 16px;}
+  footer ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;}
+  footer ul a{font-size:14px;color:#c9cee0;}
+  footer ul a:hover{color:#fff;text-decoration:underline;}
+  .social-row{display:flex;gap:14px;margin-top:6px;}
+  .social-row a{
+    width:34px;height:34px;border-radius:50%;border:1px solid #33406b;display:flex;
+    align-items:center;justify-content:center;font-size:13px;color:#c9cee0;flex-shrink:0;
+  }
+  .social-row a svg{width:16px;height:16px;fill:currentColor;}
+  .social-row a:hover{background:var(--orange);border-color:var(--orange);color:#fff;}
+  .footer-bottom{border-top:1px solid #263258;padding-top:24px;font-size:12px;color:#7c86a5;line-height:1.7;}
+  .footer-bottom .legal-links{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px;}
+  .footer-bottom .legal-links a{color:#a7afc9;font-size:12.5px;}
+  .footer-bottom .legal-links a:hover{color:#fff;text-decoration:underline;}
+
+  /* ---------- Event card bottom CTA button ---------- */
+  .event-cta-all{
+    display:block;text-align:center;margin:20px;background:var(--white);border:1px solid var(--orange);color: var(--ink);
+    font-weight:700;font-size:13.5px;padding:13px 20px;
+    border-radius:var(--radius);text-transform:uppercase;letter-spacing:.2px;
+    transition:background .15s ease;
+  }
+  .event-cta-all:hover{background:var(--orange);color: var(--white)}
+</style>
+<!--====== CSS Style ======-->
+
+</head>
+<body id="home">
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="site-header">
+  <div class="nav-row wrap">
+    <a class="brand" href="#" aria-label="Contour Network home">
+      <img src="assets/img/contour-network-logo.png" alt="Contour Network, powered by XDC Network">
+    </a>
+    <nav class="primary-nav" id="primaryNav">
+      <a href="#home">HOME</a>
+      <a href="#events">CONTOUR EVENTS</a>
+      <a href="#about">ABOUT US</a>
+    </nav>
+    <a class="nav-cta" href="https://calendly.com/rahul-contour" target="_blank">Book a Meeting</a>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <h1>Contour Network at Sibos Miami 2026</h1>
+      <p class="lede">Global Infrastucture for the Future of Finance.</p>
+    </div>
+  </section>
+
+  <!-- EVENTS -->
+  <section id="events">
+    <div class="wrap">
+      <h2 class="section-title">Register for events and engagements</h2>
+      <!--<p class="section-dek">Join Contour Network across Sibos Miami for breakfast conversations, private meetings, and stage sessions on the future of trade and payments.</p>-->
+
+      <div class="timeline" id="eventsTimeline" style="margin-top:30px;">
+
+        <div class="event">
+          <div class="event-card">
+            <a class="event-cta-all" href="https://luma.com/lwtff9cg" target="_blank">Reserve your place</a>
+            <img class="event-photo" src="assets/img/opening-bell.jpg" alt="Opening Bell institutional breakfast">
+            <div class="event-details">
+              <div class="event-date"> 29 September, 2026</div>
+              <h3>Unlocking Velocity in Trade to Payments — Sibos Miami 2026</h3>
+              <p>Join us on Tuesday, September 29, 2026, during Sibos Miami 2026 at The Bass Art Museum, located just minutes from the Convention Center, for Opening Bell: Institutional Breakfast: Unlocking Velocity in Trade &amp; Payments, from 7:30&nbsp;AM to 9:30&nbsp;AM.</p>
+            </div>
+            <a class="event-cta-all" href="https://luma.com/lwtff9cg" target="_blank">Reserve your place</a>
+          </div>
+        </div>
+
+        <div class="event">
+          <div class="event-card">
+            <a class="event-cta-all" href="mailto:Rahul@contour.network?subject=Sibos%202026%20-%20Meeting%20Request%20(Booth%20%23DISS43)" target="_blank">Book a Meeting</a>
+            <img class="event-photo" src="assets/img/contour-event-booth.jpg" alt="Contour Network exhibitor booth">
+            <div class="event-details">
+              <div class="event-date">28 September – 1 October, 2026</div>
+              <h3>Meet us at SIBOS 2026 Booth</h3>
+              <p>We invite you to schedule a private meeting with a Contour Network professional to discuss what's next for your organization. Submit your request and we will reach out to confirm your meeting.</p>
+              <p class="event-meta">
+                <strong>Location</strong>
+                Miami Beach Convention Center<br>Contour Network exhibitor booth (DISS43)
+              </p>
+            </div>
+            <a class="event-cta-all" href="mailto:Rahul@contour.network?subject=Sibos%202026%20-%20Meeting%20Request%20(Booth%20%23DISS43)" target="_blank">Book a Meeting</a>
+          </div>
+        </div>
+
+        <div class="event">
+          <div class="event-card">
+            <a class="event-cta-all" href="https://luma.com/tnotpk0e" target="_blank">Reserve your place</a>
+            <img class="event-photo" src="assets/img/discover-stage.jpg" alt="Sibos Discover Stage session">
+            <div class="event-details">
+              <div class="event-date">1 October, 2026</div>
+              <h3>Contour Showcase | A convergent future: Digital Trade, Payments Optionality, Global Standards and AI</h3>
+              <p>Join us at the Sibos Discover Stage for Session DS 33 with Rahul Bhargava, representing Contour Powered by XDC Network.</p>
+            </div>
+            <a class="event-cta-all" href="https://luma.com/tnotpk0e" target="_blank">Reserve your place</a>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="event-dots" id="eventDots" role="tablist" aria-label="Events carousel navigation">
+        <button type="button" class="dot active" aria-label="Go to event 1"></button>
+        <button type="button" class="dot" aria-label="Go to event 2"></button>
+        <button type="button" class="dot" aria-label="Go to event 3"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTRO -->
+  <section class="intro" id="about">
+    <div class="wrap intro-inner">
+      <div class="rule"></div>
+      <div>
+        <p class="lede">Contour Network will be a sponsor at this year's Sibos conference, which will take place in Miami, United States from Monday 28 September – Thursday 1 October, 2026.</p>
+        <p>The Contour team is keen to meet you at Sibos! Schedule a meeting with us at our booth, join our breakfast session and industry panel or attend our product showcase at the Discover Stage. See you in Miami!</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- CLOSING CTA -->
+  <section class="closing">
+    <div class="wrap closing-inner">
+      <h2>Let's talk about Trade, Payments, and what's next for your organization.</h2>
+      <a class="btn-primary" href="https://forms.gle/aGPEQd1ZX6mqjuJf7" target="_blank" rel="noopener">Let's Connect</a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <img src="assets/img/contour-network-logo-white.png" alt="Contour Network, powered by XDC Network">
+        <p>Global Infrastucture for the Future of Finance.</p>
+        <div class="social-row">
+          <a href="https://x.com/contourtrade" aria-label="Contour Network on X"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M453.2 112L523.8 112L369.6 288.2L551 528L409 528L297.7 382.6L170.5 528L99.8 528L264.7 339.5L90.8 112L236.4 112L336.9 244.9L453.2 112zM428.4 485.8L467.5 485.8L215.1 152L173.1 152L428.4 485.8z"></path></svg></a>
+          <a href="https://www.linkedin.com/company/contour-network/" aria-label="Contour Network on LinkedIn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M196.3 512L103.4 512L103.4 212.9L196.3 212.9L196.3 512zM149.8 172.1C120.1 172.1 96 147.5 96 117.8C96 103.5 101.7 89.9 111.8 79.8C121.9 69.7 135.6 64 149.8 64C164 64 177.7 69.7 187.8 79.8C197.9 89.9 203.6 103.6 203.6 117.8C203.6 147.5 179.5 172.1 149.8 172.1zM543.9 512L451.2 512L451.2 366.4C451.2 331.7 450.5 287.2 402.9 287.2C354.6 287.2 347.2 324.9 347.2 363.9L347.2 512L254.4 512L254.4 212.9L343.5 212.9L343.5 253.7L344.8 253.7C357.2 230.2 387.5 205.4 432.7 205.4C526.7 205.4 544 267.3 544 347.7L544 512L543.9 512z"></path></svg></a>
+        </div>
+      </div>
+
+      <div class="footer-col">
+        <h5>Quick Links</h5>
+        <ul>
+          <li><a href="#about">About Us</a></li>
+          <li><a href="#events">Contour Events</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h5>Sibos Miami 2026</h5>
+        <ul>
+          <li>Monday 28 Sep &ndash; Thursday 1 Oct</li>
+          <li>Miami Beach Convention Center</li>
+          <li>Contour Network booth (DISS43)</li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h5>Get in Touch</h5>
+        <ul>
+          <li><a href="mailto:rahul@contour.network">rahul@contour.network</a></li>
+          <li><a href="https://calendly.com/rahul-contour" target="_blank">Book a meeting</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 Contour Network. All rights reserved.</p>
+      <p>Contour Network provides a digital trade finance and payments platform connecting banks, corporates and their partners. This page is for informational purposes only and does not constitute an offer of services in any jurisdiction where Contour Network is not authorized to operate.</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('navToggle').addEventListener('click', function(){
+    var nav = document.getElementById('primaryNav');
+    var expanded = nav.classList.toggle('open');
+    this.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  });
+
+  // Smooth-scroll to in-page sections without adding #hash to the address bar
+  document.querySelectorAll('a[href^="#"]').forEach(function(link){
+    var targetId = link.getAttribute('href').slice(1);
+    if(!targetId) return; // skip bare "#" links (e.g. logo, CTA placeholders)
+    var target = document.getElementById(targetId);
+    if(!target) return;
+    link.addEventListener('click', function(e){
+      e.preventDefault();
+      target.scrollIntoView({behavior:'smooth', block:'start'});
+      // close mobile nav if open
+      var nav = document.getElementById('primaryNav');
+      if(nav.classList.contains('open')){
+        nav.classList.remove('open');
+        document.getElementById('navToggle').setAttribute('aria-expanded','false');
+      }
+    });
+  });
+
+  // Events carousel dots (mobile horizontal scroll)
+  (function(){
+    var track = document.getElementById('eventsTimeline');
+    var dotsWrap = document.getElementById('eventDots');
+    if(!track || !dotsWrap) return;
+    var slides = Array.prototype.slice.call(track.querySelectorAll('.event'));
+    var dots = Array.prototype.slice.call(dotsWrap.querySelectorAll('.dot'));
+    if(!slides.length || !dots.length) return;
+
+    function goToSlide(i){
+      var slide = slides[i];
+      if(!slide) return;
+      track.scrollTo({
+        left: slide.offsetLeft - (track.clientWidth - slide.clientWidth) / 2,
+        behavior: 'smooth'
+      });
+    }
+
+    dots.forEach(function(dot, i){
+      dot.addEventListener('click', function(){
+        stopAutoplay();
+        goToSlide(i);
+        scheduleAutoplayResume();
+      });
+    });
+
+    var AUTOPLAY_DELAY = 4000;   // time between auto-advances
+    var RESUME_DELAY = 6000;     // time to wait after user interaction before resuming
+    var autoplayTimer = null;
+    var resumeTimer = null;
+    var activeIndex = 0;
+
+    function startAutoplay(){
+      stopAutoplay();
+      autoplayTimer = setInterval(function(){
+        activeIndex = (activeIndex + 1) % slides.length; // loop back to first
+        goToSlide(activeIndex);
+      }, AUTOPLAY_DELAY);
+    }
+    function stopAutoplay(){
+      if(autoplayTimer){ clearInterval(autoplayTimer); autoplayTimer = null; }
+      if(resumeTimer){ clearTimeout(resumeTimer); resumeTimer = null; }
+    }
+    function scheduleAutoplayResume(){
+      if(resumeTimer) clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(startAutoplay, RESUME_DELAY);
+    }
+
+    // pause autoplay on manual interaction, resume after idle delay
+    ['pointerdown','touchstart','wheel'].forEach(function(evt){
+      track.addEventListener(evt, function(){
+        stopAutoplay();
+        scheduleAutoplayResume();
+      }, {passive:true});
+    });
+
+    var ticking = false;
+    function updateActiveDot(){
+      ticking = false;
+      var trackCenter = track.scrollLeft + track.clientWidth / 2;
+      var closest = 0;
+      var closestDist = Infinity;
+      slides.forEach(function(slide, i){
+        var slideCenter = slide.offsetLeft + slide.clientWidth / 2;
+        var dist = Math.abs(slideCenter - trackCenter);
+        if(dist < closestDist){ closestDist = dist; closest = i; }
+      });
+      activeIndex = closest;
+      dots.forEach(function(dot, i){ dot.classList.toggle('active', i === closest); });
+    }
+
+    track.addEventListener('scroll', function(){
+      if(!ticking){
+        ticking = true;
+        window.requestAnimationFrame(updateActiveDot);
+      }
+    }, {passive:true});
+
+    var mq = window.matchMedia('(max-width:640px)');
+    function handleAutoplayForViewport(m){
+      if(m.matches){ startAutoplay(); } else { stopAutoplay(); }
+    }
+    handleAutoplayForViewport(mq);
+    if(mq.addEventListener){ mq.addEventListener('change', handleAutoplayForViewport); }
+    else if(mq.addListener){ mq.addListener(handleAutoplayForViewport); }
+
+    window.addEventListener('resize', updateActiveDot);
+    updateActiveDot();
+  })();
+</script>
+
+</body>
+</html>
