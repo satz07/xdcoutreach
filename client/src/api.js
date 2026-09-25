@@ -71,7 +71,21 @@ export const api = {
   deactivateUser: (id) => request(`/auth/users/${id}/deactivate`, { method: 'POST' }),
   events: () => request('/events'),
   createEvent: (body) => request('/events', { method: 'POST', body: JSON.stringify(body) }),
-  templates: (eventId) => request(eventId ? `/templates?eventId=${eventId}` : '/templates'),
+  participants: (eventId, params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/events/${eventId}/participants${q ? `?${q}` : ''}`);
+  },
+  addParticipants: (eventId, body) =>
+    request(`/events/${eventId}/participants`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteParticipant: (eventId, pid) =>
+    request(`/events/${eventId}/participants/${pid}`, { method: 'DELETE' }),
+  queueParticipants: (eventId, body = {}) =>
+    request(`/events/${eventId}/participants/queue`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  templates: (eventId) =>
+    request(eventId ? `/templates?eventId=${eventId}` : '/templates'),
   updateTemplate: (id, body) =>
     request(`/templates/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   preview: (content) =>
@@ -94,9 +108,14 @@ export const api = {
   importSends: (body) =>
     request('/sends/import', { method: 'POST', body: JSON.stringify(body) }),
   autoSendStatus: () => request('/sends/auto'),
-  autoSendStart: () => request('/sends/auto/start', { method: 'POST', body: '{}' }),
+  autoSendStart: (eventId) =>
+    request('/sends/auto/start', {
+      method: 'POST',
+      body: JSON.stringify(eventId ? { eventId } : {}),
+    }),
   autoSendStop: () => request('/sends/auto/stop', { method: 'POST', body: '{}' }),
-  campaigns: () => request('/campaigns'),
+  campaigns: (eventId) =>
+    request(eventId ? `/campaigns?eventId=${eventId}` : '/campaigns'),
 };
 
 export function logoUrl(name) {

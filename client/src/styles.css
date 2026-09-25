@@ -117,6 +117,29 @@ select {
   gap: 12px;
 }
 
+.event-switcher {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin: 0;
+  min-width: 200px;
+}
+
+.event-switcher .eyebrow {
+  font-size: 10px;
+}
+
+.event-switcher select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .pill {
   font-size: 12px;
   font-weight: 600;
@@ -510,6 +533,13 @@ th {
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #fbfcfe;
+  cursor: pointer;
+}
+
+.event-list li:hover,
+.event-list li.active {
+  border-color: var(--blue);
+  background: #f0f5fb;
 }
 
 .event-list span {

@@ -11,6 +11,7 @@ let enabled = false;
 let lastTick = null;
 let lastError = null;
 let startedBy = null;
+let scopedEventId = null;
 let requeueRunning = false;
 let lastRequeue = null;
 
@@ -24,7 +25,7 @@ async function ensureSettingsTable() {
   `);
 }
 
-async function setEnabledFlag(on, userId = null) {
+async function setEnabledFlag(on, userId = null, eventId = null) {
   await ensureSettingsTable();
   await pool.query(
     `INSERT INTO app_settings (key, value, updated_at)
@@ -40,6 +41,17 @@ async function setEnabledFlag(on, userId = null) {
       [String(userId)]
     );
   }
+  if (eventId != null) {
+    scopedEventId = Number(eventId) || null;
+    await pool.query(
+      `INSERT INTO app_settings (key, value, updated_at)
+       VALUES ('auto_send_event_id', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+      [scopedEventId ? String(scopedEventId) : '']
+    );
+  } else if (on === false) {
+    // keep last event scope when stopping
+  }
 }
 
 async function loadEnabledFlag() {
@@ -47,6 +59,11 @@ async function loadEnabledFlag() {
   const { rows } = await pool.query(
     `SELECT value FROM app_settings WHERE key = 'auto_send_enabled' LIMIT 1`
   );
+  const ev = await pool.query(
+    `SELECT value FROM app_settings WHERE key = 'auto_send_event_id' LIMIT 1`
+  );
+  const raw = ev.rows[0]?.value;
+  scopedEventId = raw && /^\d+$/.test(raw) ? Number(raw) : null;
   return rows[0]?.value === 'true';
 }
 
@@ -62,14 +79,28 @@ async function claimBatch(limit = BATCH_SIZE) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query(
-      `SELECT id FROM email_sends
-       WHERE status = 'pending'
-       ORDER BY id ASC
-       LIMIT $1
-       FOR UPDATE SKIP LOCKED`,
-      [limit]
-    );
+    let rows;
+    if (scopedEventId) {
+      const r = await client.query(
+        `SELECT id FROM email_sends
+         WHERE status = 'pending' AND event_id = $1
+         ORDER BY id ASC
+         LIMIT $2
+         FOR UPDATE SKIP LOCKED`,
+        [scopedEventId, limit]
+      );
+      rows = r.rows;
+    } else {
+      const r = await client.query(
+        `SELECT id FROM email_sends
+         WHERE status = 'pending'
+         ORDER BY id ASC
+         LIMIT $1
+         FOR UPDATE SKIP LOCKED`,
+        [limit]
+      );
+      rows = r.rows;
+    }
     if (rows.length === 0) {
       await client.query('COMMIT');
       return [];
@@ -360,10 +391,13 @@ function schedule() {
   }, 2000);
 }
 
-async function startAutoSend(userId = null) {
+async function startAutoSend(userId = null, eventId = null) {
   enabled = true;
   startedBy = userId;
-  await setEnabledFlag(true, userId);
+  if (eventId != null && eventId !== '') {
+    scopedEventId = Number(eventId) || null;
+  }
+  await setEnabledFlag(true, userId, scopedEventId);
   schedule();
   return getStatus();
 }
@@ -379,24 +413,38 @@ async function stopAutoSend() {
 }
 
 async function getStatus() {
+  const scopeClause = scopedEventId ? 'AND event_id = $1' : '';
+  const scopeParams = scopedEventId ? [scopedEventId] : [];
   const pending = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM email_sends WHERE status = 'pending'`
+    `SELECT COUNT(*)::int AS n FROM email_sends WHERE status = 'pending' ${scopeClause}`,
+    scopeParams
   );
   const sending = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM email_sends WHERE status = 'sending'`
+    `SELECT COUNT(*)::int AS n FROM email_sends WHERE status = 'sending' ${scopeClause}`,
+    scopeParams
   );
   const sent = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM email_sends WHERE status = 'sent'`
+    `SELECT COUNT(*)::int AS n FROM email_sends WHERE status = 'sent' ${scopeClause}`,
+    scopeParams
   );
   const failed = await pool.query(
-    `SELECT COUNT(*)::int AS n FROM email_sends WHERE status = 'failed'`
+    `SELECT COUNT(*)::int AS n FROM email_sends WHERE status = 'failed' ${scopeClause}`,
+    scopeParams
   );
   const etaMin = pending.rows[0].n > 0 ? Math.ceil(pending.rows[0].n / BATCH_SIZE) : 0;
+
+  let eventName = null;
+  if (scopedEventId) {
+    const ev = await pool.query(`SELECT name FROM events WHERE id = $1`, [scopedEventId]);
+    eventName = ev.rows[0]?.name || null;
+  }
 
   return {
     enabled,
     running,
     mode: 'outbound-verified',
+    eventId: scopedEventId,
+    eventName,
     batchSize: BATCH_SIZE,
     intervalMs: INTERVAL_MS,
     intervalLabel: `${Math.round(INTERVAL_MS / 1000)}s`,

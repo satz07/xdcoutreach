@@ -52,37 +52,77 @@ function parseSolutions(text) {
     .filter(Boolean)
     .map((line) => {
       const idx = line.indexOf(':');
-      if (idx > 0) {
-        return { title: line.slice(0, idx).trim(), body: line.slice(idx + 1).trim() };
-      }
-      return { title: line, body: '' };
+      if (idx === -1) return { title: line, body: '' };
+      return { title: line.slice(0, idx).trim(), body: line.slice(idx + 1).trim() };
     });
 }
 
-function recipientCount(raw) {
-  return String(raw || '')
-    .split(/[,;\n]+/)
-    .map((e) => e.trim())
-    .filter(Boolean).length;
+function solutionsToText(solutions) {
+  if (!Array.isArray(solutions)) return '';
+  return solutions
+    .map((s) => (s.body ? `${s.title}: ${s.body}` : s.title || ''))
+    .filter(Boolean)
+    .join('\n');
 }
 
-/** Extract emails from paste/CSV text (handles email,email or column rows). */
+/** Hydrate editor fields from a saved template (+ optional event metadata) */
+function hydrateFromTemplate(tpl, event) {
+  let cj = tpl?.content_json;
+  if (typeof cj === 'string') {
+    try {
+      cj = JSON.parse(cj);
+    } catch {
+      cj = null;
+    }
+  }
+  if (cj && typeof cj === 'object') {
+    const solutionsText =
+      cj.solutionsText ||
+      solutionsToText(cj.solutions) ||
+      DEFAULT_CONTENT.solutionsText;
+    return {
+      subject: tpl.subject || DEFAULT_SUBJECT,
+      content: { ...DEFAULT_CONTENT, ...cj, solutionsText },
+    };
+  }
+  return {
+    subject: tpl?.subject || DEFAULT_SUBJECT,
+    content: {
+      ...DEFAULT_CONTENT,
+      headline: event
+        ? `Join XDC Network & Contour at ${event.name}`
+        : DEFAULT_CONTENT.headline,
+      location: event?.location || DEFAULT_CONTENT.location,
+      dates: event?.dates || DEFAULT_CONTENT.dates,
+    },
+  };
+}
+
 function extractEmailsFromText(text) {
-  const matches = String(text || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
+  const re = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+  const found = String(text || '').match(re) || [];
   const seen = new Set();
   const out = [];
-  for (const m of matches) {
-    const e = m.toLowerCase();
-    if (seen.has(e)) continue;
-    seen.add(e);
-    out.push(e);
+  for (const e of found) {
+    const email = e.toLowerCase();
+    if (seen.has(email)) continue;
+    seen.add(email);
+    out.push(email);
   }
   return out;
 }
 
+function recipientCount(text) {
+  return extractEmailsFromText(text).length;
+}
+
 function formatTime(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString();
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso;
+  }
 }
 
 export default function App() {
@@ -119,6 +159,12 @@ export default function App() {
   const [sendingVerified, setSendingVerified] = useState(false);
   const [autoSend, setAutoSend] = useState(null);
   const [autoSendBusy, setAutoSendBusy] = useState(false);
+
+  const [participants, setParticipants] = useState([]);
+  const [participantsTotal, setParticipantsTotal] = useState(0);
+  const [participantEmail, setParticipantEmail] = useState('');
+  const [participantBusy, setParticipantBusy] = useState(false);
+  const [participantPaste, setParticipantPaste] = useState('');
 
   const [newEvent, setNewEvent] = useState({ name: '', slug: '', location: '', dates: '' });
 
@@ -172,23 +218,37 @@ export default function App() {
     };
   }, []);
 
+  const selectedEvent = useMemo(
+    () => events.find((e) => e.id === eventId) || null,
+    [events, eventId]
+  );
+
   const loadBase = useCallback(async () => {
     if (!user) return;
     try {
-      const [h, ev, tm] = await Promise.all([api.health(), api.events(), api.templates()]);
+      const [h, ev] = await Promise.all([api.health(), api.events()]);
       setHealth(h);
       setEvents(ev);
-      setTemplates(tm);
-      if (tm[0]) {
-        setTemplateId(tm[0].id);
-        setEventId(tm[0].event_id);
-      }
-      if (ev[0] && !eventId) setEventId(ev[0].id);
+      setEventId((prev) => {
+        if (prev && ev.some((e) => e.id === prev)) return prev;
+        return ev[0]?.id || null;
+      });
     } catch (err) {
       if (/auth|session|Authentication/i.test(err.message)) {
         clearSession();
         setUser(null);
       }
+      setError(err.message);
+    }
+  }, [user]);
+
+  const loadParticipants = useCallback(async () => {
+    if (!eventId || !user) return;
+    try {
+      const data = await api.participants(eventId, { limit: 2000 });
+      setParticipants(data.items || []);
+      setParticipantsTotal(data.total || 0);
+    } catch (err) {
       setError(err.message);
     }
   }, [eventId, user]);
@@ -214,11 +274,13 @@ export default function App() {
   }, [contentPayload, user]);
 
   const loadHistory = useCallback(async () => {
+    if (!eventId) return;
     setLoadingHistory(true);
     try {
       const params = {
         limit: HISTORY_PAGE_SIZE,
         offset: (historyPage - 1) * HISTORY_PAGE_SIZE,
+        eventId,
       };
       if (filterQ) params.q = filterQ;
       if (filterStatus) params.status = filterStatus;
@@ -232,7 +294,7 @@ export default function App() {
     } finally {
       setLoadingHistory(false);
     }
-  }, [filterQ, filterStatus, historyPage]);
+  }, [filterQ, filterStatus, historyPage, eventId]);
 
   const historyPageCount = Math.max(1, Math.ceil(sendsTotal / HISTORY_PAGE_SIZE));
 
@@ -247,12 +309,36 @@ export default function App() {
 
   useEffect(() => {
     setHistoryPage(1);
-  }, [filterQ, filterStatus]);
+  }, [filterQ, filterStatus, eventId]);
 
   useEffect(() => {
     if (user) loadBase();
   }, [loadBase, user]);
 
+  useEffect(() => {
+    if (!(user && eventId)) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const tm = await api.templates(eventId);
+        if (cancelled) return;
+        setTemplates(tm);
+        const tpl = tm[0] || null;
+        setTemplateId(tpl?.id || null);
+        const event = events.find((e) => e.id === eventId);
+        const hydrated = hydrateFromTemplate(tpl, event);
+        setSubject(hydrated.subject);
+        setContent(hydrated.content);
+      } catch (err) {
+        if (!cancelled) setError(err.message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Only re-hydrate when the selected event changes (not when events list refreshes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, eventId]);
   useEffect(() => {
     if (user) refreshPreview();
   }, [refreshPreview, user]);
@@ -263,6 +349,10 @@ export default function App() {
       loadAutoSend();
     }
   }, [tab, loadHistory, loadAutoSend, user]);
+
+  useEffect(() => {
+    if (user && tab === 'participants' && eventId) loadParticipants();
+  }, [tab, eventId, loadParticipants, user]);
 
   useEffect(() => {
     if (!(user && tab === 'history')) return undefined;
@@ -281,7 +371,9 @@ export default function App() {
     setAutoSendBusy(true);
     setError('');
     try {
-      const res = autoSend?.enabled ? await api.autoSendStop() : await api.autoSendStart();
+      const res = autoSend?.enabled
+        ? await api.autoSendStop()
+        : await api.autoSendStart(eventId);
       setAutoSend(res);
       setNotice(res.message || (res.enabled ? 'Auto-send started' : 'Auto-send stopped'));
       loadHistory();
@@ -351,27 +443,28 @@ export default function App() {
     setError('');
     setNotice('');
     try {
-      const { html } = await api.preview({
+      const contentForSave = {
         ...contentPayload,
-        xdcLogoSrc: 'cid:xdc-logo',
-        contourLogoSrc: 'cid:contour-logo',
-      });
+        solutions: parseSolutions(content.solutionsText),
+      };
+      const { html } = await api.preview(contentForSave);
       await api.updateTemplate(templateId, {
         subject,
         html_body: html,
         rebuildDefault: false,
         name: content.headline.slice(0, 80),
+        content: contentForSave,
       });
-      // Pending History rows store their own html copy — keep them in sync
       const sync = await api.syncPending({
         subject,
         html_body: html,
         template_id: templateId,
+        event_id: eventId,
       });
       setNotice(
-        `Template saved. Updated ${sync.updated || 0} pending History row(s) to match.`
+        `Template saved for ${selectedEvent?.name || 'event'}. Updated ${sync.updated || 0} pending row(s).`
       );
-      const tm = await api.templates();
+      const tm = await api.templates(eventId);
       setTemplates(tm);
     } catch (err) {
       setError(err.message);
@@ -543,7 +636,91 @@ export default function App() {
       setEvents((prev) => [ev, ...prev]);
       setEventId(ev.id);
       setNewEvent({ name: '', slug: '', location: '', dates: '' });
-      setNotice(`Event "${ev.name}" created. Create/update a template and send.`);
+      setNotice(
+        `Event "${ev.name}" created with its own template and empty participant list.`
+      );
+      setTab('compose');
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleAddParticipant(e) {
+    e?.preventDefault?.();
+    if (!eventId || !participantEmail.trim()) return;
+    setParticipantBusy(true);
+    setError('');
+    try {
+      await api.addParticipants(eventId, { email: participantEmail.trim() });
+      setParticipantEmail('');
+      setNotice('Participant added');
+      loadParticipants();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setParticipantBusy(false);
+    }
+  }
+
+  async function handleImportParticipants() {
+    if (!eventId || !participantPaste.trim()) return;
+    setParticipantBusy(true);
+    setError('');
+    try {
+      const res = await api.addParticipants(eventId, { recipients: participantPaste });
+      setParticipantPaste('');
+      setNotice(
+        `Imported ${res.inserted || 0} new` +
+          (res.updated ? `, updated ${res.updated}` : '') +
+          ` for ${selectedEvent?.name || 'event'}`
+      );
+      loadParticipants();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setParticipantBusy(false);
+    }
+  }
+
+  async function handleDeleteParticipant(pid) {
+    if (!eventId) return;
+    setError('');
+    try {
+      await api.deleteParticipant(eventId, pid);
+      loadParticipants();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleQueueParticipants() {
+    if (!eventId) return;
+    setParticipantBusy(true);
+    setError('');
+    try {
+      const res = await api.queueParticipants(eventId);
+      setNotice(
+        res.queued
+          ? `Queued ${res.queued} pending send(s) for ${selectedEvent?.name || 'event'}`
+          : res.message || 'Nothing new to queue'
+      );
+      if (res.queued) setTab('history');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setParticipantBusy(false);
+    }
+  }
+
+  async function handleLoadParticipantsToCompose() {
+    if (!eventId) return;
+    setError('');
+    try {
+      const data = await api.participants(eventId, { limit: 5000 });
+      const emails = (data.items || []).map((p) => p.email);
+      setRecipients(emails.join('\n'));
+      setNotice(`Loaded ${emails.length} participant(s) into Compose recipients`);
+      setTab('compose');
     } catch (err) {
       setError(err.message);
     }
@@ -586,6 +763,19 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-meta">
+          <label className="event-switcher" title="All work is scoped to this event">
+            <span className="eyebrow">Event</span>
+            <select
+              value={eventId || ''}
+              onChange={(e) => setEventId(Number(e.target.value) || null)}
+            >
+              {events.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <span className={`pill ${health?.ok ? 'ok' : 'bad'}`}>
             {health?.ok ? 'DB connected' : 'DB offline'}
           </span>
@@ -600,6 +790,12 @@ export default function App() {
           <nav className="tabs">
             <button className={tab === 'compose' ? 'active' : ''} onClick={() => setTab('compose')}>
               Compose & Send
+            </button>
+            <button
+              className={tab === 'participants' ? 'active' : ''}
+              onClick={() => setTab('participants')}
+            >
+              Participants
             </button>
             <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>
               Send History
@@ -761,7 +957,11 @@ export default function App() {
           <section className="panel editor">
             <div className="panel-head">
               <h2>Message</h2>
-              <p>Edit the invitation, then send to any number of recipients.</p>
+              <p>
+                Editing template for{' '}
+                <strong>{selectedEvent?.name || 'selected event'}</strong>
+                {templateId ? ` · template #${templateId}` : ''}.
+              </p>
             </div>
 
             <label>
@@ -778,6 +978,29 @@ export default function App() {
               </select>
             </label>
 
+            {templates.length > 1 && (
+              <label>
+                Template
+                <select
+                  value={templateId || ''}
+                  onChange={(e) => {
+                    const id = Number(e.target.value) || null;
+                    setTemplateId(id);
+                    const tpl = templates.find((t) => t.id === id);
+                    const hydrated = hydrateFromTemplate(tpl, selectedEvent);
+                    setSubject(hydrated.subject);
+                    setContent(hydrated.content);
+                  }}
+                >
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                      {t.is_default ? ' (default)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label>
               Subject
               <input value={subject} onChange={(e) => setSubject(e.target.value)} />
@@ -951,7 +1174,7 @@ export default function App() {
 
             <label>
               Recipients{' '}
-              <span className="hint">(comma, semicolon, newline, or CSV — upload below)</span>
+              <span className="hint">(comma, semicolon, newline, or CSV — or load from Participants)</span>
               <textarea
                 rows={6}
                 placeholder="alice@bank.com, bob@corp.com&#10;or paste a column of emails from Excel…"
@@ -960,6 +1183,14 @@ export default function App() {
               />
             </label>
             <div className="actions" style={{ marginTop: 8, gap: 12, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="ghost"
+                disabled={!eventId}
+                onClick={handleLoadParticipantsToCompose}
+              >
+                Load event participants
+              </button>
               <label className="ghost" style={{ cursor: 'pointer', display: 'inline-block' }}>
                 Upload CSV / TXT
                 <input
@@ -1000,6 +1231,27 @@ export default function App() {
                 }}
               >
                 Clean / dedupe list
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                disabled={!eventId || !recipients.trim() || participantBusy}
+                onClick={async () => {
+                  setParticipantBusy(true);
+                  try {
+                    const res = await api.addParticipants(eventId, { recipients });
+                    setNotice(
+                      `Saved ${res.inserted || 0} new participant(s) to ${selectedEvent?.name || 'event'}`
+                    );
+                    loadParticipants();
+                  } catch (err) {
+                    setError(err.message);
+                  } finally {
+                    setParticipantBusy(false);
+                  }
+                }}
+              >
+                Save recipients as participants
               </button>
             </div>
             <p className="meta-line">
@@ -1079,13 +1331,24 @@ export default function App() {
         <main className="history">
           <div className="panel-head row">
             <div>
-              <h2>Send queue</h2>
+              <h2>Send queue — {selectedEvent?.name || 'Event'}</h2>
               <p>
                 {sendsTotal} shown filter · pending {statusCounts.pending || 0} · sent{' '}
                 {statusCounts.sent || 0} · failed {statusCounts.failed || 0}
               </p>
             </div>
             <div className="filters">
+              <select
+                value={eventId || ''}
+                onChange={(e) => setEventId(Number(e.target.value) || null)}
+                title="Filter by event"
+              >
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name}
+                  </option>
+                ))}
+              </select>
               <input
                 placeholder="Search email…"
                 value={filterQ}
@@ -1103,9 +1366,9 @@ export default function App() {
               </button>
               <button
                 className={autoSend?.enabled ? 'danger' : 'primary'}
-                disabled={autoSendBusy || sendingVerified}
+                disabled={autoSendBusy || sendingVerified || !eventId}
                 onClick={handleAutoSendToggle}
-                title="Queue: transactional outbound 1-by-1. Marks sent only after Postmark Activity confirms. Start/stop anytime — runs on server."
+                title="Queue: transactional outbound 1-by-1 for this event. Marks sent only after Postmark Activity confirms."
               >
                 {autoSendBusy
                   ? '…'
@@ -1148,6 +1411,9 @@ export default function App() {
             <p className={`auto-send-banner ${autoSend.enabled ? 'on' : 'off'}`}>
               Verified auto-send (transactional):{' '}
               <strong>{autoSend.enabled ? 'RUNNING' : 'stopped'}</strong>
+              {autoSend.eventName || autoSend.eventId
+                ? ` · event: ${autoSend.eventName || `#${autoSend.eventId}`}`
+                : ' · all events'}
               {' · marks sent only after Postmark confirms'}
               {autoSend.mode ? ` · ${autoSend.mode}` : ''}
               {' · '}
@@ -1271,6 +1537,143 @@ export default function App() {
         </main>
       )}
 
+      {tab === 'participants' && (
+        <main className="history">
+          <div className="panel-head row">
+            <div>
+              <h2>Participants — {selectedEvent?.name || 'Select an event'}</h2>
+              <p>
+                {participantsTotal} contact(s) stored for this event only. Queue them to Send History
+                when ready.
+              </p>
+            </div>
+            <div className="filters">
+              <select
+                value={eventId || ''}
+                onChange={(e) => setEventId(Number(e.target.value) || null)}
+              >
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name}
+                  </option>
+                ))}
+              </select>
+              <button className="ghost" onClick={loadParticipants} disabled={!eventId}>
+                Refresh
+              </button>
+              <button
+                className="ghost"
+                disabled={!eventId || participantsTotal === 0}
+                onClick={handleLoadParticipantsToCompose}
+              >
+                Load into Compose
+              </button>
+              <button
+                className="primary"
+                disabled={!eventId || participantBusy || participantsTotal === 0}
+                onClick={handleQueueParticipants}
+              >
+                {participantBusy ? 'Queuing…' : 'Queue pending sends'}
+              </button>
+            </div>
+          </div>
+
+          <div className="panel" style={{ marginBottom: 16 }}>
+            <form className="event-form" onSubmit={handleAddParticipant}>
+              <label>
+                Add email
+                <input
+                  type="email"
+                  placeholder="name@company.com"
+                  value={participantEmail}
+                  onChange={(e) => setParticipantEmail(e.target.value)}
+                />
+              </label>
+              <button className="primary" type="submit" disabled={participantBusy || !eventId}>
+                Add
+              </button>
+            </form>
+            <label>
+              Paste / import list
+              <textarea
+                rows={4}
+                placeholder="Paste emails (comma, newline, or CSV)…"
+                value={participantPaste}
+                onChange={(e) => setParticipantPaste(e.target.value)}
+              />
+            </label>
+            <div className="actions" style={{ gap: 12, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="primary"
+                disabled={participantBusy || !participantPaste.trim() || !eventId}
+                onClick={handleImportParticipants}
+              >
+                Import to this event
+              </button>
+              <label className="ghost" style={{ cursor: 'pointer', display: 'inline-block' }}>
+                Upload CSV / TXT
+                <input
+                  type="file"
+                  accept=".csv,.txt,.tsv,text/csv,text/plain"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      setParticipantPaste(String(reader.result || ''));
+                      setNotice(`Loaded file ${file.name} — click Import to save`);
+                    };
+                    reader.readAsText(file);
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Name</th>
+                  <th>Company</th>
+                  <th>Added</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {participants.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.email}</td>
+                    <td>{p.name || '—'}</td>
+                    <td>{p.company || '—'}</td>
+                    <td>{formatTime(p.created_at)}</td>
+                    <td>
+                      <button
+                        className="ghost small"
+                        onClick={() => handleDeleteParticipant(p.id)}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {participants.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="empty">
+                      No participants for this event yet. Import a list above.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </main>
+      )}
+
       {tab === 'events' && (
         <main className="events">
           <section className="panel">
@@ -1280,12 +1683,20 @@ export default function App() {
             </div>
             <ul className="event-list">
               {events.map((ev) => (
-                <li key={ev.id}>
+                <li
+                  key={ev.id}
+                  onClick={() => {
+                    setEventId(ev.id);
+                    setNotice(`Switched to ${ev.name}`);
+                  }}
+                  className={ev.id === eventId ? 'active' : ''}
+                >
                   <strong>{ev.name}</strong>
                   <span>
                     {ev.location || '—'} · {ev.dates || '—'}
                   </span>
                   <code>{ev.slug}</code>
+                  {ev.id === eventId ? <em> · selected</em> : null}
                 </li>
               ))}
             </ul>
@@ -1331,8 +1742,9 @@ export default function App() {
               </button>
             </form>
             <p className="hint-block">
-              After creating an event, open Compose, select it, edit the message, save the template,
-              and send. Templates are stored in Postgres with full send history for audit/resend.
+              Each event has its own email template, participant list, and send history. After
+              creating an event, use the Event dropdown (top bar), edit Compose, manage Participants,
+              then send from History.
             </p>
           </section>
         </main>

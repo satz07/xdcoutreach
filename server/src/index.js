@@ -128,6 +128,21 @@ async function ensureSchema() {
       CREATE INDEX IF NOT EXISTS idx_email_sends_recipient ON email_sends(recipient_email);
       CREATE INDEX IF NOT EXISTS idx_email_sends_campaign ON email_sends(campaign_id);
       CREATE INDEX IF NOT EXISTS idx_email_sends_sent_at ON email_sends(sent_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_email_sends_event ON email_sends(event_id);
+
+      CREATE TABLE IF NOT EXISTS event_participants (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        email TEXT NOT NULL,
+        name TEXT,
+        company TEXT,
+        notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (event_id, email)
+      );
+      CREATE INDEX IF NOT EXISTS idx_event_participants_event ON event_participants(event_id);
+      CREATE INDEX IF NOT EXISTS idx_event_participants_email ON event_participants(email);
 
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -164,11 +179,24 @@ async function ensureSchema() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS email_send_limit INTEGER;
       ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS sent_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
       ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS sent_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+      ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS content_json JSONB;
     `);
 
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_email_sends_sent_by ON email_sends(sent_by_user_id);
+      CREATE INDEX IF NOT EXISTS idx_email_sends_event ON email_sends(event_id);
       CREATE INDEX IF NOT EXISTS idx_users_invite_token ON users(invite_token);
+    `);
+
+    // Backfill participants from existing send history (once)
+    await client.query(`
+      INSERT INTO event_participants (event_id, email)
+      SELECT DISTINCT s.event_id, LOWER(TRIM(s.recipient_email))
+      FROM email_sends s
+      WHERE s.event_id IS NOT NULL
+        AND s.recipient_email IS NOT NULL
+        AND TRIM(s.recipient_email) <> ''
+      ON CONFLICT (event_id, email) DO NOTHING
     `);
 
     const { hashPassword } = require('./middleware/auth');
@@ -236,13 +264,7 @@ async function ensureSchema() {
       );
       console.log('Seeded default Sibos 2026 template');
     } else {
-      await client.query(
-        `UPDATE email_templates
-         SET subject = $1, html_body = $2, text_body = $3, name = $4, updated_at = NOW()
-         WHERE id = $5`,
-        [DEFAULT_SUBJECT, html, DEFAULT_TEXT, 'Sibos 2026 Invitation', existing.rows[0].id]
-      );
-      console.log('Refreshed default Sibos 2026 template');
+      console.log('Default Sibos template already exists (left unchanged)');
     }
   } finally {
     client.release();

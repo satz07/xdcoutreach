@@ -39,7 +39,7 @@ router.get('/events', async (_req, res) => {
   }
 });
 
-/** Create event (for future events) */
+/** Create event + default invite template for that event */
 router.post('/events', async (req, res) => {
   try {
     const { name, slug, location, dates } = req.body;
@@ -52,9 +52,271 @@ router.post('/events', async (req, res) => {
        RETURNING *`,
       [name, slug, location || null, dates || null]
     );
-    res.status(201).json(rows[0]);
+    const event = rows[0];
+
+    const content = {
+      headline: `Join XDC Network & Contour at ${name}`,
+      location: location || '',
+      dates: dates || '',
+      booth: '',
+      greeting: 'Dear Partner,',
+      intro:
+        'As financial institutions prepare for an AI-driven economy, infrastructure must move beyond faster processing to autonomous execution, programmable liquidity, and compliant digital settlement.',
+      showcase: `At ${name}, XDC Network and Contour are showcasing how institutions can unify enterprise Layer 1 blockchain rails with digitized trade and dollar-stable settlement.`,
+      solutionsTitle: 'Core Solutions & Product Lineup',
+      solutions: [
+        {
+          title: 'Instant Domestic & Cross-Border Settlement',
+          body: 'Native USDC on XDC delivers sub-second finality and near-zero transaction fees for corporate treasury, institutional transfers, and multi-corridor remittances.',
+        },
+        {
+          title: 'Everyday & Corporate Cards',
+          body: 'Instant card top-ups using native USDC on XDC for virtual and physical debit spending worldwide.',
+        },
+        {
+          title: 'Global Payouts & QR Retail Rails',
+          body: 'Seamless disbursement routing to over 70 jurisdictions, alongside local merchant QR code point-of-sale settlement.',
+        },
+        {
+          title: 'Digitized Trade Finance (Contour)',
+          body: 'Fully paperless Letters of Credit (LCs), electronic documentation, and milestone-based smart contract settlement integrated with ISO 20022 messaging.',
+        },
+        {
+          title: 'Autonomous Agentic Commerce (XDC AI)',
+          body: 'Native HTTP 402 (x402) payment rails and gasless smart accounts enabling autonomous AI agents to initiate, reconcile, and settle expenses, compute, and API services compliantly.',
+        },
+      ],
+      leadershipTitle: `Connect with Leadership at ${name}`,
+      signOff: 'Best regards,\nThe XDC Network & Contour Delegation',
+      disclaimer:
+        'Disclaimer: All banking, payment processing, card issuance, and regulated financial services are facilitated exclusively through appropriately authorized and licensed third-party financial institutions and partner entities in their respective jurisdictions. XDC Network is a decentralized enterprise blockchain protocol provider and does not directly provide banking, deposit-taking, or custodial financial services.',
+      ctaEmail: 'support@xdcforpayments.org',
+      ctaMailtoSubject: `${name} - Meeting Request`,
+      ctaMailtoBody: `Hello,\n\nI would like to schedule a meeting with the XDC Network & Contour delegation at ${name}.\n\nPreferred times:\n\nThank you.`,
+      ctaLinkType: 'mailto',
+      ctaLabel: 'Schedule a Meeting',
+    };
+    const subject = `Meet XDC Network & Contour at ${name}`;
+    const html = buildSibosEmailHtml(content);
+    const tpl = await pool.query(
+      `INSERT INTO email_templates
+        (event_id, name, subject, html_body, text_body, is_default, content_json)
+       VALUES ($1, $2, $3, $4, $5, TRUE, $6)
+       RETURNING *`,
+      [event.id, `${name} Invitation`, subject, html, null, JSON.stringify(content)]
+    );
+
+    res.status(201).json({ ...event, template: tpl.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+/** List participants for an event */
+router.get('/events/:id/participants', async (req, res) => {
+  try {
+    const eventId = Number(req.params.id);
+    const { q, limit = 500, offset = 0 } = req.query;
+    const params = [eventId];
+    let where = 'WHERE event_id = $1';
+    if (q) {
+      params.push(`%${q}%`);
+      where += ` AND (email ILIKE $${params.length} OR name ILIKE $${params.length} OR company ILIKE $${params.length})`;
+    }
+    const lim = Math.min(Number(limit) || 500, 5000);
+    const off = Math.max(Number(offset) || 0, 0);
+    params.push(lim, off);
+    const { rows } = await pool.query(
+      `SELECT * FROM event_participants ${where}
+       ORDER BY email ASC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+    const countRes = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM event_participants ${where}`,
+      params.slice(0, params.length - 2)
+    );
+    res.json({ items: rows, total: countRes.rows[0].total, eventId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Add / upsert participants for an event */
+router.post('/events/:id/participants', async (req, res) => {
+  try {
+    const eventId = Number(req.params.id);
+    const ev = await pool.query(`SELECT id FROM events WHERE id = $1`, [eventId]);
+    if (!ev.rows[0]) return res.status(404).json({ error: 'Event not found' });
+
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    let list = [];
+    if (Array.isArray(req.body?.participants)) {
+      list = req.body.participants;
+    } else if (Array.isArray(req.body?.emails)) {
+      list = req.body.emails.map((e) => ({ email: e }));
+    } else if (req.body?.email) {
+      list = [req.body];
+    } else if (req.body?.recipients) {
+      const { valid } = parseRecipients(req.body.recipients);
+      list = valid.map((email) => ({ email }));
+    }
+
+    const seen = new Set();
+    const valid = [];
+    const invalid = [];
+    for (const row of list) {
+      const email = String(row.email || '')
+        .trim()
+        .toLowerCase();
+      if (!email || !emailRe.test(email)) {
+        if (email) invalid.push(email);
+        continue;
+      }
+      if (seen.has(email)) continue;
+      seen.add(email);
+      valid.push({
+        email,
+        name: row.name ? String(row.name).trim() : null,
+        company: row.company ? String(row.company).trim() : null,
+        notes: row.notes ? String(row.notes).trim() : null,
+      });
+    }
+    if (valid.length === 0) {
+      return res.status(400).json({ error: 'No valid participants', invalid });
+    }
+
+    let inserted = 0;
+    let updated = 0;
+    for (let i = 0; i < valid.length; i += 100) {
+      const slice = valid.slice(i, i + 100);
+      for (const p of slice) {
+        const r = await pool.query(
+          `INSERT INTO event_participants (event_id, email, name, company, notes)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (event_id, email) DO UPDATE SET
+             name = COALESCE(EXCLUDED.name, event_participants.name),
+             company = COALESCE(EXCLUDED.company, event_participants.company),
+             notes = COALESCE(EXCLUDED.notes, event_participants.notes),
+             updated_at = NOW()
+           RETURNING (xmax = 0) AS is_insert`,
+          [eventId, p.email, p.name, p.company, p.notes]
+        );
+        if (r.rows[0]?.is_insert) inserted += 1;
+        else updated += 1;
+      }
+    }
+
+    res.json({ ok: true, eventId, inserted, updated, invalidCount: invalid.length, invalid: invalid.slice(0, 20) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Delete one participant */
+router.delete('/events/:id/participants/:pid', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `DELETE FROM event_participants WHERE id = $1 AND event_id = $2 RETURNING id, email`,
+      [req.params.pid, req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Participant not found' });
+    res.json({ ok: true, deleted: rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Queue pending email_sends for this event's participants (uses event default template).
+ * Skips emails already pending/sending/sent for the event.
+ */
+router.post('/events/:id/participants/queue', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const eventId = Number(req.params.id);
+    const { onlyPendingMissing = true } = req.body || {};
+
+    const tpl = await client.query(
+      `SELECT * FROM email_templates WHERE event_id = $1 ORDER BY is_default DESC, updated_at DESC LIMIT 1`,
+      [eventId]
+    );
+    if (!tpl.rows[0]) {
+      return res.status(400).json({ error: 'No template for this event — save one in Compose first' });
+    }
+    const template = tpl.rows[0];
+
+    let participants;
+    if (onlyPendingMissing) {
+      const r = await client.query(
+        `SELECT p.email FROM event_participants p
+         WHERE p.event_id = $1
+           AND NOT EXISTS (
+             SELECT 1 FROM email_sends s
+             WHERE s.event_id = p.event_id
+               AND LOWER(s.recipient_email) = p.email
+               AND s.status IN ('pending', 'sending', 'sent')
+           )
+         ORDER BY p.email`,
+        [eventId]
+      );
+      participants = r.rows;
+    } else {
+      const r = await client.query(
+        `SELECT email FROM event_participants WHERE event_id = $1 ORDER BY email`,
+        [eventId]
+      );
+      participants = r.rows;
+    }
+
+    if (participants.length === 0) {
+      return res.json({ ok: true, queued: 0, message: 'Nothing new to queue' });
+    }
+
+    await client.query('BEGIN');
+    const campaign = await client.query(
+      `INSERT INTO email_campaigns
+        (event_id, template_id, subject, html_body, recipients_raw, total_recipients, status, sent_by_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
+       RETURNING id`,
+      [
+        eventId,
+        template.id,
+        template.subject,
+        template.html_body,
+        `${participants.length} from participants`,
+        participants.length,
+        req.user.id,
+      ]
+    );
+    const campaignId = campaign.rows[0].id;
+    let queued = 0;
+    for (let i = 0; i < participants.length; i += 200) {
+      const slice = participants.slice(i, i + 200);
+      const values = [];
+      const params = [];
+      let p = 1;
+      for (const row of slice) {
+        values.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, 'pending', $${p++})`);
+        params.push(campaignId, eventId, row.email, template.subject, template.html_body, req.user.id);
+      }
+      await client.query(
+        `INSERT INTO email_sends
+          (campaign_id, event_id, recipient_email, subject, html_body, status, sent_by_user_id)
+         VALUES ${values.join(', ')}`,
+        params
+      );
+      queued += slice.length;
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, eventId, campaignId, queued, templateId: template.id });
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (_) {}
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -100,16 +362,18 @@ router.get('/templates/:id', async (req, res) => {
 /** Update template content */
 router.put('/templates/:id', async (req, res) => {
   try {
-    const { subject, html_body, text_body, name, rebuildDefault } = req.body;
+    const { subject, html_body, text_body, name, rebuildDefault, content, content_json } = req.body;
 
     let html = html_body;
     let text = text_body;
     let subj = subject;
+    let contentJson = content_json || content || null;
 
     if (rebuildDefault) {
-      const content = req.body.content || {};
-      html = buildSibosEmailHtml(content);
-      if (content.subject) subj = content.subject;
+      const c = content || {};
+      html = buildSibosEmailHtml(c);
+      if (c.subject) subj = c.subject;
+      contentJson = c;
     }
 
     const { rows } = await pool.query(
@@ -118,10 +382,18 @@ router.put('/templates/:id', async (req, res) => {
            html_body = COALESCE($2, html_body),
            text_body = COALESCE($3, text_body),
            name = COALESCE($4, name),
+           content_json = COALESCE($5::jsonb, content_json),
            updated_at = NOW()
-       WHERE id = $5
+       WHERE id = $6
        RETURNING *`,
-      [subj || null, html || null, text || null, name || null, req.params.id]
+      [
+        subj || null,
+        html || null,
+        text || null,
+        name || null,
+        contentJson ? JSON.stringify(contentJson) : null,
+        req.params.id,
+      ]
     );
 
     if (!rows[0]) return res.status(404).json({ error: 'Template not found' });
@@ -563,7 +835,8 @@ router.post('/sends/send-selected', async (req, res) => {
 router.post('/sends/import', requireSuperAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
-    const { recipients, clear = true, subject, html_body } = req.body || {};
+    const { recipients, clear = false, subject, html_body, event_id, alsoParticipants = true } =
+      req.body || {};
     let valid = [];
     let invalid = [];
     if (Array.isArray(recipients)) {
@@ -592,32 +865,54 @@ router.post('/sends/import', requireSuperAdmin, async (req, res) => {
 
     let subjectFinal = subject;
     let htmlFinal = html_body;
-    let eventId = null;
+    let eventId = event_id ? Number(event_id) : null;
     let templateId = null;
+
+    if (!eventId) {
+      return res.status(400).json({ error: 'event_id is required — imports are per-event' });
+    }
 
     if (!subjectFinal || !htmlFinal) {
       const t = await client.query(
-        `SELECT * FROM email_templates WHERE is_default = TRUE ORDER BY updated_at DESC LIMIT 1`
+        `SELECT * FROM email_templates WHERE event_id = $1 ORDER BY is_default DESC, updated_at DESC LIMIT 1`,
+        [eventId]
       );
       if (t.rows[0]) {
         subjectFinal = subjectFinal || t.rows[0].subject;
         htmlFinal = htmlFinal || t.rows[0].html_body;
-        eventId = t.rows[0].event_id;
         templateId = t.rows[0].id;
       }
     }
 
     if (!subjectFinal || !htmlFinal) {
-      return res.status(400).json({ error: 'No default template found; provide subject and html_body' });
+      return res.status(400).json({ error: 'No template for this event; provide subject and html_body' });
     }
 
     await client.query('BEGIN');
 
     if (clear) {
-      // Wipe queue and reset SERIAL ids so History starts at 1 again
-      await client.query('TRUNCATE TABLE email_sends, email_campaigns RESTART IDENTITY CASCADE');
-      await client.query(`ALTER SEQUENCE IF EXISTS email_sends_id_seq RESTART WITH 1`);
-      await client.query(`ALTER SEQUENCE IF EXISTS email_campaigns_id_seq RESTART WITH 1`);
+      // Wipe only this event's queue — leave other events untouched
+      await client.query(`DELETE FROM email_sends WHERE event_id = $1`, [eventId]);
+      await client.query(`DELETE FROM email_campaigns WHERE event_id = $1`, [eventId]);
+    }
+
+    if (alsoParticipants) {
+      for (let i = 0; i < valid.length; i += 200) {
+        const slice = valid.slice(i, i + 200);
+        const values = [];
+        const params = [];
+        let p = 1;
+        for (const email of slice) {
+          values.push(`($${p++}, $${p++})`);
+          params.push(eventId, email);
+        }
+        await client.query(
+          `INSERT INTO event_participants (event_id, email)
+           VALUES ${values.join(', ')}
+           ON CONFLICT (event_id, email) DO NOTHING`,
+          params
+        );
+      }
     }
 
     const campaign = await client.query(
@@ -697,37 +992,47 @@ router.delete('/sends/:id', requireSuperAdmin, async (req, res) => {
  */
 router.post('/sends/sync-pending', async (req, res) => {
   try {
-    let { subject, html_body, template_id } = req.body || {};
+    let { subject, html_body, template_id, event_id } = req.body || {};
+    let eventId = event_id ? Number(event_id) : null;
 
     if (!subject || !html_body) {
       const t = template_id
         ? await pool.query(`SELECT * FROM email_templates WHERE id = $1`, [template_id])
-        : await pool.query(
-            `SELECT * FROM email_templates WHERE is_default = TRUE ORDER BY updated_at DESC LIMIT 1`
-          );
+        : eventId
+          ? await pool.query(
+              `SELECT * FROM email_templates WHERE event_id = $1 ORDER BY is_default DESC, updated_at DESC LIMIT 1`,
+              [eventId]
+            )
+          : await pool.query(
+              `SELECT * FROM email_templates WHERE is_default = TRUE ORDER BY updated_at DESC LIMIT 1`
+            );
       if (!t.rows[0]) {
         return res.status(400).json({ error: 'No template found to sync from' });
       }
       subject = subject || t.rows[0].subject;
       html_body = html_body || t.rows[0].html_body;
+      eventId = eventId || t.rows[0].event_id;
+    }
+
+    if (!eventId) {
+      return res.status(400).json({ error: 'event_id required to sync pending without mixing events' });
     }
 
     const { rowCount } = await pool.query(
       `UPDATE email_sends
        SET subject = $1, html_body = $2
-       WHERE status = 'pending'`,
-      [subject, html_body]
+       WHERE status = 'pending' AND event_id = $3`,
+      [subject, html_body, eventId]
     );
 
-    // Keep campaign draft in sync too
     await pool.query(
       `UPDATE email_campaigns
        SET subject = $1, html_body = $2
-       WHERE status = 'pending'`,
-      [subject, html_body]
+       WHERE status = 'pending' AND event_id = $3`,
+      [subject, html_body, eventId]
     );
 
-    res.json({ ok: true, updated: rowCount, subject });
+    res.json({ ok: true, updated: rowCount, subject, eventId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -829,11 +1134,13 @@ router.get('/sends/auto', async (_req, res) => {
 router.post('/sends/auto/start', async (req, res) => {
   try {
     const { startAutoSend, getStatus } = require('../services/autoSender');
-    await startAutoSend(req.user?.id || null);
+    const eventId = req.body?.eventId || req.body?.event_id || null;
+    await startAutoSend(req.user?.id || null, eventId);
     const status = await getStatus();
     res.json({
       ok: true,
-      message: `Verified auto-send started: ${status.batchSize}/min (outbound, Postmark-confirmed)`,
+      message: `Verified auto-send started: ${status.batchSize}/min` +
+        (status.eventId ? ` for event #${status.eventId}` : ' (all events)'),
       ...status,
     });
   } catch (err) {
@@ -870,10 +1177,14 @@ router.post('/sends/requeue-unverified', requireSuperAdmin, async (_req, res) =>
 /** Send history with filters */
 router.get('/sends', async (req, res) => {
   try {
-    const { q, status, limit = 50, offset = 0, campaignId } = req.query;
+    const { q, status, limit = 50, offset = 0, campaignId, eventId } = req.query;
     const clauses = [];
     const params = [];
 
+    if (eventId) {
+      params.push(Number(eventId));
+      clauses.push(`s.event_id = $${params.length}`);
+    }
     if (q) {
       params.push(`%${q}%`);
       clauses.push(`s.recipient_email ILIKE $${params.length}`);
@@ -894,9 +1205,10 @@ router.get('/sends', async (req, res) => {
     params.push(off);
 
     const { rows } = await pool.query(
-      `SELECT s.*, c.status AS campaign_status
+      `SELECT s.*, c.status AS campaign_status, e.name AS event_name
        FROM email_sends s
        LEFT JOIN email_campaigns c ON c.id = s.campaign_id
+       LEFT JOIN events e ON e.id = s.event_id
        ${where}
        ORDER BY
          CASE s.status WHEN 'pending' THEN 0 WHEN 'failed' THEN 1 ELSE 2 END,
@@ -910,8 +1222,11 @@ router.get('/sends', async (req, res) => {
       params.slice(0, params.length - 2)
     );
 
+    const statusParams = eventId ? [Number(eventId)] : [];
+    const statusWhere = eventId ? 'WHERE event_id = $1' : '';
     const statusCounts = await pool.query(
-      `SELECT status, COUNT(*)::int AS count FROM email_sends GROUP BY status`
+      `SELECT status, COUNT(*)::int AS count FROM email_sends ${statusWhere} GROUP BY status`,
+      statusParams
     );
 
     res.json({
@@ -919,6 +1234,7 @@ router.get('/sends', async (req, res) => {
       total: countRes.rows[0].total,
       limit: lim,
       offset: off,
+      eventId: eventId ? Number(eventId) : null,
       statusCounts: Object.fromEntries(statusCounts.rows.map((r) => [r.status, r.count])),
     });
   } catch (err) {
@@ -927,8 +1243,16 @@ router.get('/sends', async (req, res) => {
 });
 
 /** Campaign list */
-router.get('/campaigns', async (_req, res) => {
+router.get('/campaigns', async (req, res) => {
   try {
+    const { eventId } = req.query;
+    if (eventId) {
+      const { rows } = await pool.query(
+        `SELECT * FROM email_campaigns WHERE event_id = $1 ORDER BY created_at DESC LIMIT 50`,
+        [Number(eventId)]
+      );
+      return res.json(rows);
+    }
     const { rows } = await pool.query(
       `SELECT * FROM email_campaigns ORDER BY created_at DESC LIMIT 50`
     );

@@ -53,6 +53,21 @@ CREATE TABLE IF NOT EXISTS email_sends (
 CREATE INDEX IF NOT EXISTS idx_email_sends_recipient ON email_sends(recipient_email);
 CREATE INDEX IF NOT EXISTS idx_email_sends_campaign ON email_sends(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_email_sends_sent_at ON email_sends(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_sends_event ON email_sends(event_id);
+
+CREATE TABLE IF NOT EXISTS event_participants (
+  id SERIAL PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  name TEXT,
+  company TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (event_id, email)
+);
+CREATE INDEX IF NOT EXISTS idx_event_participants_event ON event_participants(event_id);
+CREATE INDEX IF NOT EXISTS idx_event_participants_email ON event_participants(email);
 `;
 
 const DEFAULT_SUBJECT =
