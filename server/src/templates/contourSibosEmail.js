@@ -263,8 +263,8 @@ function buildContourSibosEmailHtml(overrides = {}) {
                 ${programCard({
                   image: boothImg,
                   title: boothTitle,
-                  when: boothWhen,
-                  time: boothTime,
+                  when: '',
+                  time: '',
                   where: boothWhere,
                   speaker: '',
                   note: '',
@@ -274,8 +274,8 @@ function buildContourSibosEmailHtml(overrides = {}) {
                 ${programCard({
                   image: breakfastImg,
                   title: breakfastTitle,
-                  when: breakfastWhen,
-                  time: breakfastTime,
+                  when: '',
+                  time: '',
                   where: breakfastWhere,
                   speaker: breakfastWho,
                   note: breakfastNote,
@@ -285,8 +285,8 @@ function buildContourSibosEmailHtml(overrides = {}) {
                 ${programCard({
                   image: discoverImg,
                   title: discoverTitle,
-                  when: discoverWhen,
-                  time: discoverTime,
+                  when: '',
+                  time: '',
                   where: discoverWhere,
                   speaker: discoverWho,
                   note: '',
