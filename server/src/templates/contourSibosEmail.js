@@ -44,17 +44,21 @@ function buildContourSibosEmailHtml(overrides = {}) {
     location = 'Miami Beach Convention Center',
     dates = 'September 28 – October 1, 2026',
     booth = 'Booth #DISS43',
-    greeting = 'Dear Partner,',
+    greeting = '',
     intro = `There is rising global momentum behind unlocking the velocity of transactions as they flow from the business/trade transaction to payment settlement and supply chain activation. Contour has supported its members as a best practice standard for trade finance digitisation since 2021, with proven impact to supply chain velocity and working capital gains.`,
     upgrades = `Latest upgrades to the platform include AI-assistance for document conversion and data validation against rulebooks, TradeTrust and GLEIF, as well as integrated payments settlements including stablecoin use cases.`,
-    programIntro = `We have carefully curated our Sibos program to share more and engage with the Sibos community on the underlying key themes:`,
+    whitelabel = `Contour offers all these services on a whitelabeled basis as well.`,
+    enterpriseServices = `Enterprise Services - Firms can also opt to separately use just the Agentic AI services or Payments Settlement services, including stablecoin and interbank settlements to enhance their Treasury and Payments portfolio.`,
+    programIntro = `We have carefully curated our Sibos program to fully engage with the Sibos community on the future of trade to payments`,
     boothTitle = 'Meet us at the Contour Booth DISS43',
     boothWhen = 'Sept 28 – October 01, 2026',
-    boothWhere = 'Miami Beach Convention Center',
+    boothWhere = 'Head over to our booth in the Discover Zone, or feel free to request for a meeting',
     boothTime = '',
     boothBody = 'Schedule a private meeting with a Contour Network professional to discuss what’s next for your organization.',
     boothCtaLabel = 'Book a meeting',
     boothCtaUrl = 'https://calendly.com/rahul-contour',
+    /** Set false/empty to hide booth photo (date/location already on banner). */
+    showBoothImage = false,
     breakfastTitle = 'Industry networking breakfast and Experts Panel',
     breakfastTheme = '',
     breakfastWhen = 'September 29, 2026',
@@ -103,12 +107,16 @@ function buildContourSibosEmailHtml(overrides = {}) {
     <tr>
       <td style="padding:0 0 16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border:1px solid #E6E0D8;border-radius:8px;overflow:hidden;">
-          <tr>
+          ${
+            image
+              ? `<tr>
             <td>
               <img src="${escapeHtml(image)}" alt="" width="552"
                 style="width:100%;max-width:552px;height:auto;display:block;border:0;"/>
             </td>
-          </tr>
+          </tr>`
+              : ''
+          }
           <tr>
             <td style="padding:18px 18px 8px;">
               <h3 style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:18px;line-height:1.35;color:#182752;font-weight:700;">
@@ -238,9 +246,23 @@ function buildContourSibosEmailHtml(overrides = {}) {
           <!-- Intro -->
           <tr>
             <td class="email-pad" style="padding:26px 24px 8px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.75;color:#243447;background-color:#ffffff;">
-              <p style="margin:0 0 16px;font-weight:600;color:#182752;">${escapeHtml(greeting)}</p>
+              ${
+                greeting
+                  ? `<p style="margin:0 0 16px;font-weight:600;color:#182752;">${escapeHtml(greeting)}</p>`
+                  : ''
+              }
               <p style="margin:0 0 16px;">${escapeHtml(intro)}</p>
-              <p style="margin:0;">${escapeHtml(upgrades)}</p>
+              <p style="margin:0 0 16px;">${escapeHtml(upgrades)}</p>
+              ${
+                whitelabel
+                  ? `<p style="margin:0 0 16px;">${escapeHtml(whitelabel)}</p>`
+                  : ''
+              }
+              ${
+                enterpriseServices
+                  ? `<p style="margin:0;">${escapeHtml(enterpriseServices)}</p>`
+                  : ''
+              }
             </td>
           </tr>
 
@@ -261,7 +283,7 @@ function buildContourSibosEmailHtml(overrides = {}) {
             <td class="email-pad" style="padding:16px 24px 4px;background-color:#F7F4EF;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 ${programCard({
-                  image: boothImg,
+                  image: showBoothImage === false || showBoothImage === 'false' ? '' : boothImg,
                   title: boothTitle,
                   when: '',
                   time: '',
@@ -333,21 +355,26 @@ function defaultContourSibosContent() {
     location: 'Miami Beach Convention Center',
     dates: 'September 28 – October 1, 2026',
     booth: 'Booth #DISS43',
-    greeting: 'Dear Partner,',
+    greeting: '',
     intro:
       'There is rising global momentum behind unlocking the velocity of transactions as they flow from the business/trade transaction to payment settlement and supply chain activation. Contour has supported its members as a best practice standard for trade finance digitisation since 2021, with proven impact to supply chain velocity and working capital gains.',
     upgrades:
       'Latest upgrades to the platform include AI-assistance for document conversion and data validation against rulebooks, TradeTrust and GLEIF, as well as integrated payments settlements including stablecoin use cases.',
+    whitelabel: 'Contour offers all these services on a whitelabeled basis as well.',
+    enterpriseServices:
+      'Enterprise Services - Firms can also opt to separately use just the Agentic AI services or Payments Settlement services, including stablecoin and interbank settlements to enhance their Treasury and Payments portfolio.',
     programIntro:
-      'We have carefully curated our Sibos program to share more and engage with the Sibos community on the underlying key themes:',
+      'We have carefully curated our Sibos program to fully engage with the Sibos community on the future of trade to payments',
     boothTitle: 'Meet us at the Contour Booth DISS43',
-    boothWhen: 'Sept 28 – October 01, 2026',
-    boothWhere: 'Miami Beach Convention Center',
+    boothWhen: '',
+    boothWhere:
+      'Head over to our booth in the Discover Zone, or feel free to request for a meeting',
     boothTime: '',
     boothBody:
       'Schedule a private meeting with a Contour Network professional to discuss what’s next for your organization.',
     boothCtaLabel: 'Book a meeting',
     boothCtaUrl: 'https://calendly.com/rahul-contour',
+    showBoothImage: false,
     breakfastTitle: 'Industry networking breakfast and Experts Panel',
     breakfastTheme: '',
     breakfastWhen: 'September 29, 2026',

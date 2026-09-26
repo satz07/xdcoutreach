@@ -56,23 +56,28 @@ const CONTOUR_DEFAULT_CONTENT = {
   location: 'Miami Beach Convention Center',
   dates: 'September 28 – October 1, 2026',
   booth: 'Booth #DISS43',
-  greeting: 'Dear Partner,',
+  greeting: '',
   intro:
     'There is rising global momentum behind unlocking the velocity of transactions as they flow from the business/trade transaction to payment settlement and supply chain activation. Contour has supported its members as a best practice standard for trade finance digitisation since 2021, with proven impact to supply chain velocity and working capital gains.',
   upgrades:
     'Latest upgrades to the platform include AI-assistance for document conversion and data validation against rulebooks, TradeTrust and GLEIF, as well as integrated payments settlements including stablecoin use cases.',
+  whitelabel: 'Contour offers all these services on a whitelabeled basis as well.',
+  enterpriseServices:
+    'Enterprise Services - Firms can also opt to separately use just the Agentic AI services or Payments Settlement services, including stablecoin and interbank settlements to enhance their Treasury and Payments portfolio.',
   programIntro:
-    'We have carefully curated our Sibos program to share more and engage with the Sibos community on the underlying key themes:',
+    'We have carefully curated our Sibos program to fully engage with the Sibos community on the future of trade to payments',
   boothTitle: 'Meet us at the Contour Booth DISS43',
-  boothWhen: 'Sept 28 – October 01, 2026',
-  boothWhere: 'Miami Beach Convention Center',
+  boothWhen: '',
+  boothWhere:
+    'Head over to our booth in the Discover Zone, or feel free to request for a meeting',
   boothTime: '',
   boothCtaLabel: 'Book a meeting',
   boothCtaUrl: 'https://calendly.com/rahul-contour',
+  showBoothImage: false,
   breakfastTitle: 'Industry networking breakfast and Experts Panel',
   breakfastTheme: '',
-  breakfastWhen: 'September 29, 2026',
-  breakfastTime: '7:30 AM – 9:30 AM EDT',
+  breakfastWhen: '',
+  breakfastTime: '',
   breakfastWhere: '',
   breakfastWho: 'Industry leaders from SAP, Accenture, Eastnets and GLEIF, moderated by Contour',
   breakfastNote: 'Reserve your place early! Seats are limited!',
@@ -80,8 +85,8 @@ const CONTOUR_DEFAULT_CONTENT = {
   breakfastCtaUrl: 'https://luma.com/lwtff9cg',
   discoverTitle: 'Discovery Stage Showcase: Contour',
   discoverTheme: '',
-  discoverWhen: 'October 01, 2026',
-  discoverTime: '9:30 AM – 10:30 AM EDT',
+  discoverWhen: '',
+  discoverTime: '',
   discoverWhere: 'Discover Stage, Sibos Miami 2026 | Session Code: DS 33',
   discoverWho: 'Rahul Bhargava, Interim Chief Operating Officer, Contour Network',
   discoverCtaLabel: 'Register your place',
@@ -1160,6 +1165,24 @@ export default function App() {
                     rows={3}
                     value={content.upgrades || ''}
                     onChange={(e) => updateField('upgrades', e.target.value)}
+                  />
+                </label>
+
+                <label>
+                  Whitelabel line
+                  <textarea
+                    rows={2}
+                    value={content.whitelabel || ''}
+                    onChange={(e) => updateField('whitelabel', e.target.value)}
+                  />
+                </label>
+
+                <label>
+                  Enterprise Services paragraph
+                  <textarea
+                    rows={3}
+                    value={content.enterpriseServices || ''}
+                    onChange={(e) => updateField('enterpriseServices', e.target.value)}
                   />
                 </label>
 
