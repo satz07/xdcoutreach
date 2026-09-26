@@ -368,6 +368,10 @@ router.post('/events/:id/participants/queue', async (req, res) => {
 
     let participants;
     if (onlyPendingMissing) {
+      const { requeueSent = false } = req.body || {};
+      const skipStatuses = requeueSent
+        ? ['pending', 'sending']
+        : ['pending', 'sending', 'sent'];
       const r = await client.query(
         `SELECT p.email FROM event_participants p
          WHERE p.event_id = $1
@@ -375,10 +379,10 @@ router.post('/events/:id/participants/queue', async (req, res) => {
              SELECT 1 FROM email_sends s
              WHERE s.event_id = p.event_id
                AND LOWER(s.recipient_email) = p.email
-               AND s.status IN ('pending', 'sending')
+               AND s.status = ANY($2::text[])
            )
          ORDER BY p.email`,
-        [eventId]
+        [eventId, skipStatuses]
       );
       participants = r.rows;
     } else {
