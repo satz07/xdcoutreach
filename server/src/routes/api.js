@@ -741,7 +741,7 @@ router.post('/send', async (req, res) => {
     client.release();
   }
 });
-/** Resend a previous send by id */
+/** Resend a previous send by id — always uses latest Compose template for the event */
 router.post('/sends/:id/resend', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -757,6 +757,10 @@ router.post('/sends/:id/resend', async (req, res) => {
     const original = rows[0];
     if (!original) return res.status(404).json({ error: 'Send record not found' });
 
+    const content = await contentForSendRow(original);
+    const subject = content.subject;
+    const html = content.html;
+
     const newRow = await client.query(
       `INSERT INTO email_sends
         (campaign_id, event_id, recipient_email, subject, html_body, status, sent_by_user_id)
@@ -766,18 +770,24 @@ router.post('/sends/:id/resend', async (req, res) => {
         original.campaign_id,
         original.event_id,
         original.recipient_email,
-        original.subject,
-        original.html_body,
+        subject,
+        html,
         req.user.id,
       ]
     );
 
     try {
-      const info = await sendOneEmail({
-        to: original.recipient_email,
-        subject: original.subject,
-        html: original.html_body,
-      });
+      const info = original.event_id
+        ? await sendOneForEvent(original.event_id, {
+            to: original.recipient_email,
+            subject,
+            html,
+          })
+        : await sendOneEmail({
+            to: original.recipient_email,
+            subject,
+            html,
+          });
       const { rows: updated } = await client.query(
         `UPDATE email_sends
          SET status = 'sent', message_id = $1, sent_at = NOW()
@@ -785,7 +795,12 @@ router.post('/sends/:id/resend', async (req, res) => {
          RETURNING *`,
         [info.messageId, newRow.rows[0].id]
       );
-      res.json({ ok: true, send: updated[0], quota: await getRemainingQuota(req.user) });
+      res.json({
+        ok: true,
+        send: updated[0],
+        fromTemplate: content.fromTemplate,
+        quota: await getRemainingQuota(req.user),
+      });
     } catch (err) {
       const { rows: updated } = await client.query(
         `UPDATE email_sends
@@ -803,7 +818,7 @@ router.post('/sends/:id/resend', async (req, res) => {
   }
 });
 
-/** Bulk resend selected send ids (creates new rows) */
+/** Bulk resend selected send ids (creates new rows) — latest Compose template */
 router.post('/sends/resend-bulk', async (req, res) => {
   try {
     const { ids } = req.body;
@@ -820,6 +835,7 @@ router.post('/sends/resend-bulk', async (req, res) => {
     }
 
     const results = [];
+    const templateCache = new Map();
     for (const id of ids) {
       const { rows } = await pool.query(`SELECT * FROM email_sends WHERE id = $1`, [id]);
       const original = rows[0];
@@ -827,6 +843,10 @@ router.post('/sends/resend-bulk', async (req, res) => {
         results.push({ id, status: 'not_found' });
         continue;
       }
+
+      const content = await contentForSendRow(original, templateCache);
+      const subject = content.subject;
+      const html = content.html;
 
       const inserted = await pool.query(
         `INSERT INTO email_sends
@@ -837,29 +857,47 @@ router.post('/sends/resend-bulk', async (req, res) => {
           original.campaign_id,
           original.event_id,
           original.recipient_email,
-          original.subject,
-          original.html_body,
+          subject,
+          html,
           req.user.id,
         ]
       );
 
       try {
-        const info = await sendOneEmail({
-          to: original.recipient_email,
-          subject: original.subject,
-          html: original.html_body,
-        });
+        const info = original.event_id
+          ? await sendOneForEvent(original.event_id, {
+              to: original.recipient_email,
+              subject,
+              html,
+            })
+          : await sendOneEmail({
+              to: original.recipient_email,
+              subject,
+              html,
+            });
         await pool.query(
           `UPDATE email_sends SET status='sent', message_id=$1, sent_at=NOW() WHERE id=$2`,
           [info.messageId, inserted.rows[0].id]
         );
-        results.push({ id, newId: inserted.rows[0].id, email: original.recipient_email, status: 'sent' });
+        results.push({
+          id,
+          newId: inserted.rows[0].id,
+          email: original.recipient_email,
+          status: 'sent',
+          fromTemplate: content.fromTemplate,
+        });
       } catch (err) {
         await pool.query(
           `UPDATE email_sends SET status='failed', error_message=$1 WHERE id=$2`,
           [err.message, inserted.rows[0].id]
         );
-        results.push({ id, newId: inserted.rows[0].id, email: original.recipient_email, status: 'failed', error: err.message });
+        results.push({
+          id,
+          newId: inserted.rows[0].id,
+          email: original.recipient_email,
+          status: 'failed',
+          error: err.message,
+        });
       }
     }
 
@@ -1361,7 +1399,7 @@ router.get('/sends', async (req, res) => {
        ${where}
        ORDER BY
          CASE s.status WHEN 'pending' THEN 0 WHEN 'failed' THEN 1 ELSE 2 END,
-         s.id ASC
+         s.id DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     );
