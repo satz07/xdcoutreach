@@ -79,7 +79,8 @@ const CONTOUR_DEFAULT_CONTENT = {
   breakfastWhen: '',
   breakfastTime: '',
   breakfastWhere: '',
-  breakfastWho: 'Industry leaders from SAP, Accenture, Eastnets and GLEIF, moderated by Contour',
+  breakfastWho:
+    'You are invited to join us for a refined breakfast, curated networking, and an interactive panel, followed by time for continued conversations before guests return to Sibos Day 2. The panel has industry leaders from SAP, Accenture, Eastnets and GLEIF, moderated by Contour',
   breakfastNote: 'Reserve your place early! Seats are limited!',
   breakfastCtaLabel: 'Reserve your place',
   breakfastCtaUrl: 'https://luma.com/lwtff9cg',
@@ -88,7 +89,7 @@ const CONTOUR_DEFAULT_CONTENT = {
   discoverWhen: '',
   discoverTime: '',
   discoverWhere: 'Discover Stage, Sibos Miami 2026 | Session Code: DS 33',
-  discoverWho: 'Rahul Bhargava, Interim Chief Operating Officer, Contour Network',
+  discoverWho: 'Presented by: Rahul Bhargava, Interim COO, Contour Network',
   discoverCtaLabel: 'Register your place',
   discoverCtaUrl: 'https://luma.com/tnotpk0e',
   closing: 'Thank you and we look forward to meeting you at Sibos!',
