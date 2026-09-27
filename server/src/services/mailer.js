@@ -673,7 +673,8 @@ async function sendViaSendGridApi(provider, { to, subject, html, text, fromName 
     process.env.SENDGRID_FROM_NAME ||
     'Contour Network';
   const htmlBody = prepareOutboundHtml(html, { embedLogoCid: true });
-  const logoFiles = resolveLogoAttachments();
+  // Unreferenced inline parts show up as stray attachments and hurt inbox placement.
+  const logoFiles = resolveLogoAttachments().filter((f) => htmlBody.includes(`cid:${f.cid}`));
 
   const payload = {
     personalizations: [{ to: [{ email: to }] }],
@@ -683,7 +684,7 @@ async function sendViaSendGridApi(provider, { to, subject, html, text, fromName 
       ...(text ? [{ type: 'text/plain', value: text }] : []),
       { type: 'text/html', value: htmlBody },
     ],
-    attachments: sendgridInlineAttachments(logoFiles),
+    ...(logoFiles.length ? { attachments: sendgridInlineAttachments(logoFiles) } : {}),
   };
 
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {

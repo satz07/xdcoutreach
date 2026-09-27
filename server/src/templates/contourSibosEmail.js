@@ -201,8 +201,8 @@ function buildContourSibosEmailHtml(overrides = {}) {
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="left" valign="middle">
-                    <img src="${escapeHtml(logo)}" alt="Contour Network" width="160"
-                      style="width:160px;max-width:55%;height:auto;display:block;border:0;"/>
+                    <img src="${escapeHtml(logo)}" alt="CONTOUR NETWORK" width="160" height="43"
+                      style="width:160px;max-width:55%;height:auto;display:block;border:0;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;letter-spacing:1px;color:#182752;"/>
                   </td>
                   <td align="right" valign="middle">
                     <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#182752;font-weight:700;">
@@ -216,9 +216,9 @@ function buildContourSibosEmailHtml(overrides = {}) {
 
           <!-- Banner -->
           <tr>
-            <td style="padding:0;line-height:0;font-size:0;">
-              <img src="${escapeHtml(banner)}" alt="Sibos Miami skyline" width="600"
-                style="width:100%;max-width:600px;height:auto;display:block;border:0;"/>
+            <td bgcolor="#182752" style="padding:0;line-height:0;font-size:0;background-color:#182752;">
+              <img src="${escapeHtml(banner)}" alt="Contour Network at Sibos Miami 2026" width="600"
+                style="width:100%;max-width:600px;height:auto;display:block;border:0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.4;font-weight:700;color:#ffffff;text-align:center;"/>
             </td>
           </tr>
 
