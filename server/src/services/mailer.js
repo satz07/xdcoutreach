@@ -52,6 +52,46 @@ function prepareOutboundHtml(html, { embedLogoCid = true } = {}) {
   return out;
 }
 
+function decodeEntities(str) {
+  return str
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+}
+
+/** Plain-text alternative; HTML-only bulk mail scores worse with spam filters. */
+function htmlToText(html) {
+  let s = String(html || '')
+    .replace(/<head[\s\S]*?<\/head>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<div[^>]*display:\s*none[\s\S]*?<\/div>/gi, '')
+    .replace(/<img[^>]*>/gi, '');
+
+  s = s.replace(/<a\s[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, inner) => {
+    const label = decodeEntities(inner.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+    if (!label || /^mailto:/i.test(href)) return label;
+    return label === href ? href : `${label} (${href})`;
+  });
+
+  s = s
+    .replace(/<li[^>]*>/gi, '\n- ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|h[1-6]|tr|table|ul|ol|div)>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '');
+
+  return decodeEntities(s)
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function htmlWithPublicLogos(html) {
   return prepareOutboundHtml(html, { embedLogoCid: false });
 }
@@ -679,11 +719,21 @@ async function sendViaSendGridApi(provider, { to, subject, html, text, fromName 
   const payload = {
     personalizations: [{ to: [{ email: to }] }],
     from: { email: fromEmail, name },
+    reply_to: { email: fromEmail, name },
     subject,
     content: [
-      ...(text ? [{ type: 'text/plain', value: text }] : []),
+      { type: 'text/plain', value: text || htmlToText(htmlBody) },
       { type: 'text/html', value: htmlBody },
     ],
+    headers: {
+      'List-Unsubscribe': `<mailto:${fromEmail}?subject=unsubscribe>`,
+    },
+    // No link branding on contour.network: tracking would rewrite every link to SendGrid's
+    // shared ct.sendgrid.net domain, which spam filters penalise.
+    tracking_settings: {
+      click_tracking: { enable: false, enable_text: false },
+      open_tracking: { enable: false },
+    },
     ...(logoFiles.length ? { attachments: sendgridInlineAttachments(logoFiles) } : {}),
   };
 
