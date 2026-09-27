@@ -1152,8 +1152,17 @@ export default function App() {
                   />
                   Show Luma “Opening Bell” image at the top
                 </label>
+                <label className="inline-check">
+                  <input
+                    type="checkbox"
+                    checked={content.showHeaderStrip === true || content.showHeaderStrip === 'true'}
+                    onChange={(e) => updateField('showHeaderStrip', e.target.checked)}
+                  />
+                  Show navy title strip under the image{' '}
+                  <span className="hint">(always shown if the image is off)</span>
+                </label>
                 <label>
-                  Date / time line <span className="hint">(small orange line under the image)</span>
+                  Date / time line <span className="hint">(navy title strip)</span>
                   <input
                     value={content.eyebrow || ''}
                     onChange={(e) => updateField('eyebrow', e.target.value)}

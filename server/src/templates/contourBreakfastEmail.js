@@ -53,6 +53,7 @@ function defaultContourBreakfastContent() {
     headline: 'Unlocking Velocity in Global Trade to Payments',
     subheadline: 'Institutional breakfast & global experts panel · The Bass Art Museum, Miami Beach',
     showHero: true,
+    showHeaderStrip: false,
     greeting: '',
     intro:
       '[Contour Network](https://www.contour.network), along with co-hosts **SAP** and **Eastnets** is convening an institutional breakfast event and global experts panel on the above topic at Sibos Miami featuring global industry leaders:',
@@ -122,6 +123,8 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
   const logo = c.logoSrc || c.contourLogoSrc || 'cid:contour-logo';
   const hero = c.heroImgSrc || img('opening-bell.jpg');
   const showHero = !(c.showHero === false || c.showHero === 'false');
+  // The Luma cover already carries title/date, so the strip only returns when asked or when the cover is off.
+  const showHeaderStrip = !showHero || c.showHeaderStrip === true || c.showHeaderStrip === 'true';
   const registerUrl = c.registerUrl || 'https://luma.com/Unlockingvelocity';
 
   const para = (text, margin = '0 0 16px') =>
@@ -327,7 +330,9 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
               : ''
           }
 
-          <!-- Navy strip -->
+          ${
+            showHeaderStrip
+              ? `<!-- Navy strip -->
           <tr>
             <td bgcolor="#182752" class="email-pad" style="background-color:#182752;padding:22px 24px;">
               <p style="margin:0 0 8px;${P}font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#F6C3A8;font-weight:700;">
@@ -342,7 +347,9 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
               ${btn(registerUrl, c.registerCtaLabel || 'Register', { bg: '#F2661F' })}
             </td>
           </tr>
-
+`
+              : ''
+          }
           <!-- Orange accent -->
           <tr>
             <td bgcolor="#F2661F" style="background-color:#F2661F;height:4px;font-size:0;line-height:0;">&nbsp;</td>
