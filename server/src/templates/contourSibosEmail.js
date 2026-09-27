@@ -408,4 +408,5 @@ module.exports = {
   CONTOUR_SIBOS_SUBJECT,
   escapeHtml,
   resolveAssetBase,
+  btn,
 };

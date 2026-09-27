@@ -109,6 +109,20 @@ const CONTOUR_DEFAULT_CONTENT = {
   ctaLabel: 'Book a meeting',
 };
 
+const BREAKFAST_DEFAULT_SUBJECT =
+  'Invitation | Sibos breakfast event & dialogue on "Unlocking Velocity in Global Trade to Payments"!';
+
+/** Server fills any missing breakfast fields from defaultContourBreakfastContent(). */
+const BREAKFAST_DEFAULT_CONTENT = {
+  templateKind: 'contour-breakfast',
+  headline: 'Unlocking Velocity in Global Trade to Payments',
+  eyebrow: 'Sibos Miami · Tuesday, September 29, 2026',
+  subheadline: 'Institutional breakfast & global experts panel · The Bass Art Museum, Miami Beach',
+  greeting: '',
+  intro: '',
+  solutionsText: '',
+};
+
 function parseSolutions(text) {
   return String(text || '')
     .split('\n')
@@ -143,8 +157,17 @@ function hydrateFromTemplate(tpl, event) {
     cj?.templateKind === 'contour-sibos' ||
     /contour/i.test(event?.slug || '') ||
     /contour/i.test(event?.name || '');
-  const base = isContour ? CONTOUR_DEFAULT_CONTENT : DEFAULT_CONTENT;
-  const defaultSubject = isContour ? CONTOUR_DEFAULT_SUBJECT : DEFAULT_SUBJECT;
+  const isBreakfast = cj?.templateKind === 'contour-breakfast';
+  const base = isBreakfast
+    ? BREAKFAST_DEFAULT_CONTENT
+    : isContour
+      ? CONTOUR_DEFAULT_CONTENT
+      : DEFAULT_CONTENT;
+  const defaultSubject = isBreakfast
+    ? BREAKFAST_DEFAULT_SUBJECT
+    : isContour
+      ? CONTOUR_DEFAULT_SUBJECT
+      : DEFAULT_SUBJECT;
 
   if (cj && typeof cj === 'object') {
     const solutionsText =
@@ -272,7 +295,8 @@ export default function App() {
       solutions: parseSolutions(content.solutionsText),
       xdcLogoSrc: logoUrl('xdc.png'),
       contourLogoSrc: logoUrl('contour.png'),
-      ...(content.templateKind === 'contour-sibos'
+      ...(content.templateKind === 'contour-sibos' ||
+      content.templateKind === 'contour-breakfast'
         ? {
             assetBase: eventAssetUrl('contour-sibos', '').replace(/\/$/, ''),
           }
@@ -316,6 +340,7 @@ export default function App() {
   );
 
   const isContourTemplate = content.templateKind === 'contour-sibos';
+  const isBreakfastTemplate = content.templateKind === 'contour-breakfast';
 
   const loadBase = useCallback(async () => {
     if (!user) return;
@@ -1116,30 +1141,51 @@ export default function App() {
               />
             </label>
 
-            <div className="row-2">
-              <label>
-                Location
-                <input
-                  value={content.location}
-                  onChange={(e) => updateField('location', e.target.value)}
-                />
-              </label>
-              <label>
-                Dates
-                <input
-                  value={content.dates}
-                  onChange={(e) => updateField('dates', e.target.value)}
-                />
-              </label>
-            </div>
+            {isBreakfastTemplate ? (
+              <>
+                <label>
+                  Banner eyebrow <span className="hint">(small orange line above headline)</span>
+                  <input
+                    value={content.eyebrow || ''}
+                    onChange={(e) => updateField('eyebrow', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Banner sub-line
+                  <input
+                    value={content.subheadline || ''}
+                    onChange={(e) => updateField('subheadline', e.target.value)}
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <div className="row-2">
+                  <label>
+                    Location
+                    <input
+                      value={content.location}
+                      onChange={(e) => updateField('location', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Dates
+                    <input
+                      value={content.dates}
+                      onChange={(e) => updateField('dates', e.target.value)}
+                    />
+                  </label>
+                </div>
 
-            <label>
-              Booth
-              <input
-                value={content.booth}
-                onChange={(e) => updateField('booth', e.target.value)}
-              />
-            </label>
+                <label>
+                  Booth
+                  <input
+                    value={content.booth}
+                    onChange={(e) => updateField('booth', e.target.value)}
+                  />
+                </label>
+              </>
+            )}
 
             <label>
               Greeting
@@ -1158,7 +1204,214 @@ export default function App() {
               />
             </label>
 
-            {isContourTemplate ? (
+            {isBreakfastTemplate ? (
+              <>
+                <label>
+                  Limited seats line <span className="hint">(followed by the register button)</span>
+                  <textarea
+                    rows={2}
+                    value={content.seatsText || ''}
+                    onChange={(e) => updateField('seatsText', e.target.value)}
+                  />
+                </label>
+                <div className="row-2">
+                  <label>
+                    Register button label
+                    <input
+                      value={content.registerCtaLabel || ''}
+                      onChange={(e) => updateField('registerCtaLabel', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Register URL (Luma)
+                    <input
+                      type="url"
+                      value={content.registerUrl || ''}
+                      onChange={(e) => updateField('registerUrl', e.target.value)}
+                    />
+                  </label>
+                </div>
+                <label>
+                  Audience paragraph
+                  <textarea
+                    rows={3}
+                    value={content.audience || ''}
+                    onChange={(e) => updateField('audience', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Discussion intro
+                  <textarea
+                    rows={2}
+                    value={content.discussionIntro || ''}
+                    onChange={(e) => updateField('discussionIntro', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Discussion topics <span className="hint">(one per line — shown as bullets)</span>
+                  <textarea
+                    rows={5}
+                    value={content.topicsText || ''}
+                    onChange={(e) => updateField('topicsText', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Questions line
+                  <input
+                    value={content.questions || ''}
+                    onChange={(e) => updateField('questions', e.target.value)}
+                  />
+                </label>
+
+                <h4 className="field-group-title">Breakfast card</h4>
+                <label>
+                  Title
+                  <input
+                    value={content.eventTitle || ''}
+                    onChange={(e) => updateField('eventTitle', e.target.value)}
+                  />
+                </label>
+                <div className="row-2">
+                  <label>
+                    When
+                    <input
+                      value={content.eventWhen || ''}
+                      onChange={(e) => updateField('eventWhen', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Where
+                    <input
+                      value={content.eventWhere || ''}
+                      onChange={(e) => updateField('eventWhere', e.target.value)}
+                    />
+                  </label>
+                </div>
+                <label>
+                  Orange note
+                  <input
+                    value={content.eventNote || ''}
+                    onChange={(e) => updateField('eventNote', e.target.value)}
+                  />
+                </label>
+                <label className="inline-check">
+                  <input
+                    type="checkbox"
+                    checked={!(content.showEventImage === false || content.showEventImage === 'false')}
+                    onChange={(e) => updateField('showEventImage', e.target.checked)}
+                  />
+                  Show breakfast image
+                </label>
+
+                <h4 className="field-group-title">Continued conversation (Discover Stage)</h4>
+                <label>
+                  Title
+                  <input
+                    value={content.continuedTitle || ''}
+                    onChange={(e) => updateField('continuedTitle', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Intro
+                  <textarea
+                    rows={3}
+                    value={content.continuedIntro || ''}
+                    onChange={(e) => updateField('continuedIntro', e.target.value)}
+                  />
+                </label>
+                <div className="row-2">
+                  <label>
+                    When
+                    <input
+                      value={content.continuedWhen || ''}
+                      onChange={(e) => updateField('continuedWhen', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Where
+                    <input
+                      value={content.continuedWhere || ''}
+                      onChange={(e) => updateField('continuedWhere', e.target.value)}
+                    />
+                  </label>
+                </div>
+                <label>
+                  Orange note
+                  <input
+                    value={content.continuedNote || ''}
+                    onChange={(e) => updateField('continuedNote', e.target.value)}
+                  />
+                </label>
+                <div className="row-2">
+                  <label>
+                    Button label
+                    <input
+                      value={content.continuedCtaLabel || ''}
+                      onChange={(e) => updateField('continuedCtaLabel', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Button URL (Luma)
+                    <input
+                      type="url"
+                      value={content.continuedCtaUrl || ''}
+                      onChange={(e) => updateField('continuedCtaUrl', e.target.value)}
+                    />
+                  </label>
+                </div>
+                <label>
+                  Booth line
+                  <input
+                    value={content.boothLine || ''}
+                    onChange={(e) => updateField('boothLine', e.target.value)}
+                  />
+                </label>
+
+                <h4 className="field-group-title">Media coverage</h4>
+                <label>
+                  Intro
+                  <input
+                    value={content.mediaIntro || ''}
+                    onChange={(e) => updateField('mediaIntro', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Links{' '}
+                  <span className="hint">
+                    (one per line — Title | https://link; lines without a link show as plain text)
+                  </span>
+                  <textarea
+                    rows={5}
+                    value={content.mediaText || ''}
+                    onChange={(e) => updateField('mediaText', e.target.value)}
+                  />
+                </label>
+
+                <label>
+                  Sign-off
+                  <textarea
+                    rows={2}
+                    value={content.signOff || ''}
+                    onChange={(e) => updateField('signOff', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Footer note
+                  <input
+                    value={content.footerNote || ''}
+                    onChange={(e) => updateField('footerNote', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Confidentiality disclaimer
+                  <textarea
+                    rows={4}
+                    value={content.disclaimer || ''}
+                    onChange={(e) => updateField('disclaimer', e.target.value)}
+                  />
+                </label>
+              </>
+            ) : isContourTemplate ? (
               <>
                 <label>
                   Platform upgrades paragraph

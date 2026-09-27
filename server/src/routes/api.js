@@ -7,6 +7,7 @@ const {
   defaultContourSibosContent,
   CONTOUR_SIBOS_SUBJECT,
 } = require('../templates/contourSibosEmail');
+const { buildContourBreakfastEmailHtml } = require('../templates/contourBreakfastEmail');
 const { requireAuth, requireSuperAdmin, getRemainingQuota } = require('../middleware/auth');
 const {
   listProviders,
@@ -25,12 +26,14 @@ const router = express.Router();
 /** Pick email builder from content.templateKind (default: Sibos XDC). */
 function buildEventEmailHtml(content = {}) {
   const base = (process.env.APP_URL || '').replace(/\/$/, '');
+  const isContourKind =
+    content.templateKind === 'contour-sibos' || content.templateKind === 'contour-breakfast';
   const withAssets = {
     ...content,
     // Always embed logos as CID for send/save; preview client overrides with hosted URLs
     xdcLogoSrc: content.xdcLogoSrc || 'cid:xdc-logo',
     contourLogoSrc: content.contourLogoSrc || 'cid:contour-logo',
-    ...(content.templateKind === 'contour-sibos' && base
+    ...(isContourKind && base
       ? {
           assetBase: content.assetBase || `${base}/events/contour-sibos`,
           logoSrc: content.logoSrc || content.contourLogoSrc || 'cid:contour-logo',
@@ -39,6 +42,9 @@ function buildEventEmailHtml(content = {}) {
   };
   if (withAssets.templateKind === 'contour-sibos') {
     return buildContourSibosEmailHtml(withAssets);
+  }
+  if (withAssets.templateKind === 'contour-breakfast') {
+    return buildContourBreakfastEmailHtml(withAssets);
   }
   return buildSibosEmailHtml(withAssets);
 }
