@@ -1,7 +1,9 @@
 /**
  * Contour Network — Sibos breakfast & experts panel invitation (bankers audience).
- * Same brand bar, banner, navy strip and footer as the Contour @ Sibos email.
- * Assets served from /events/contour-sibos/ (shared with Contour @ Sibos).
+ * Same brand bar, navy strip and footer as the Contour @ Sibos email; hero is the Luma
+ * "Opening Bell" cover. Assets served from /events/contour-sibos/.
+ *
+ * Text fields support **bold** and [label](https://url).
  */
 const { escapeHtml, resolveAssetBase, btn } = require('./contourSibosEmail');
 
@@ -12,6 +14,15 @@ function linesOf(text) {
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
+}
+
+function rich(text) {
+  return escapeHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#182752;font-weight:700;">$1</strong>')
+    .replace(
+      /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+      '<a href="$2" style="color:#F2661F;font-weight:700;text-decoration:underline;">$1</a>'
+    );
 }
 
 /** "Label | https://url" per line → [{ label, url }] (url optional). */
@@ -38,13 +49,24 @@ function linkify(text) {
 function defaultContourBreakfastContent() {
   return {
     templateKind: 'contour-breakfast',
-    eyebrow: 'Sibos Miami · Tuesday, September 29, 2026',
+    eyebrow: 'Sibos Miami · Tuesday, September 29, 2026 · 7:30 – 9:30 AM',
     headline: 'Unlocking Velocity in Global Trade to Payments',
     subheadline: 'Institutional breakfast & global experts panel · The Bass Art Museum, Miami Beach',
+    showHero: true,
     greeting: '',
     intro:
-      'Contour Network, along with co-hosts SAP and Eastnets is convening an institutional breakfast event and global experts panel on the above topic at Sibos Miami featuring leaders from the Global Legal Entity Identifier Foundation (GLEIF), SAP, Accenture, and Eastnets.',
+      '[Contour Network](https://www.contour.network), along with co-hosts **SAP** and **Eastnets** is convening an institutional breakfast event and global experts panel on the above topic at Sibos Miami featuring global industry leaders:',
+    speakersText: [
+      'Alexandre Kech, CEO, **Global Legal Entity Identifier Foundation (GLEIF)**',
+      'Sulabh Agarwal, Global Payments Lead, **Accenture**',
+      'Kiran Mistry, Regional VP, Head of Financial Services APAC, **SAP**',
+      'Baiba Miezere, Group Product Development Director, **Eastnets**',
+      'Moderator: Rahul Bhargava, Interim COO, **Contour Network**',
+    ].join('\n'),
     seatsText: 'As there are limited seats left, we welcome you to register at the earliest.',
+    eventWhen: 'Tuesday, September 29, from 7:30 to 9:30 a.m. EDT',
+    eventWhere: 'The Bass Art Museum in Miami Beach (walkable to the venue)',
+    eventNote: 'Grab one of the limited seats left - register now!',
     registerCtaLabel: 'I want to register',
     registerUrl: 'https://luma.com/Unlockingvelocity',
     audience:
@@ -60,20 +82,15 @@ function defaultContourBreakfastContent() {
     ].join('\n'),
     questions:
       'Come armed with questions and comments for an insightful and exciting start to Day 2 at Sibos!',
-    eventTitle: 'Sibos Breakfast & Experts Panel',
-    eventWhen: 'Tuesday, September 29, from 7:30 to 9:30 a.m. EDT',
-    eventWhere: 'The Bass Art Museum in Miami Beach (walkable to the venue)',
-    eventNote: 'Grab one of the limited seats left - register now!',
-    showEventImage: true,
     continuedIntro:
-      'If you are unable to make it on 29th, or otherwise missed the opportunity, or need more information - please join the continued conversation at the Contour showcase at this time:',
+      'If you are unable to make it on 29th, or otherwise missed the opportunity, or need more information - please join the continued conversation at the **Contour** showcase at this time:',
     continuedTitle: 'Contour Showcase · Discover Stage',
     continuedWhen: 'October 1st, 9.45 - 10.15 AM',
     continuedWhere: 'Discover Stage',
     continuedNote: 'Express your seats and join the conversation on the future of Trade to Payments!',
     continuedCtaLabel: 'Register here',
     continuedCtaUrl: 'https://luma.com/tnotpk0e',
-    boothLine: 'Or visit us at the Contour booth in the Discovery Zone, Booth #DISS43!',
+    boothLine: 'Or visit us at the **Contour** booth in the Discovery Zone, Booth #DISS43!',
     mediaIntro: 'As additional reference - some media coverage around this Sibos breakfast event:',
     mediaText: [
       'Post by Global Trade Review | LinkedIn | https://www.linkedin.com/posts/sibos2026-tradefinance-payments-share-7508895620678541313-tESZ/',
@@ -86,40 +103,46 @@ function defaultContourBreakfastContent() {
     disclaimer:
       'This message and any attachments are confidential and meant for the intended recipients only. If you received this email in error, please notify us immediately and delete this message and any attachments from your system. Do not copy or disclose the contents to any other person. Contour is committed to ensuring the security and integrity of all personal data that we process. Any personal data collected during email correspondence with Contour shall be processed in accordance with our Privacy Policy at https://contour.network/privacy-policy',
     preheader:
-      'Limited seats left — Sibos breakfast & experts panel with GLEIF, SAP, Accenture and Eastnets · Sep 29, Miami Beach',
+      'Sibos breakfast & experts panel with GLEIF, SAP, Accenture and Eastnets · Sep 29, 7:30 – 9:30 AM, Miami Beach',
   };
 }
 
 const CONTOUR_BREAKFAST_SUBJECT =
-  'Invitation | Sibos breakfast event & dialogue on "Unlocking Velocity in Global Trade to Payments"!';
+  'Invitation | Sibos breakfast event & panel on "Unlocking Velocity in Global Trade to Payments"!';
 
 function buildContourBreakfastEmailHtml(overrides = {}) {
   const c = { ...defaultContourBreakfastContent(), ...overrides };
   const assetBase = resolveAssetBase(c.assetBase);
   const img = (name) => `${assetBase}/${name}`;
 
-  const banner = c.bannerSrc || img('banner.jpg');
   const logo = c.logoSrc || c.contourLogoSrc || 'cid:contour-logo';
-  const eventImg = c.eventImgSrc || img('breakfast.jpg');
-  const showEventImage = !(c.showEventImage === false || c.showEventImage === 'false');
+  const hero = c.heroImgSrc || img('opening-bell.jpg');
+  const showHero = !(c.showHero === false || c.showHero === 'false');
   const registerUrl = c.registerUrl || 'https://luma.com/Unlockingvelocity';
 
   const para = (text, margin = '0 0 16px') =>
-    text ? `<p style="margin:${margin};">${escapeHtml(text)}</p>` : '';
+    text ? `<p style="margin:${margin};">${rich(text)}</p>` : '';
+
+  const bullets = (text, margin = '0 0 16px') => {
+    const items = linesOf(text);
+    return items.length
+      ? `<ul style="margin:${margin};padding:0 0 0 20px;">
+        ${items
+          .map((t) => `<li style="margin:0 0 6px;padding-left:2px;">${rich(t)}</li>`)
+          .join('')}
+      </ul>`
+      : '';
+  };
 
   const signOffHtml = escapeHtml(c.signOff)
     .split('\n')
     .map((line) => line || '&nbsp;')
     .join('<br/>');
 
-  const topics = linesOf(c.topicsText);
-  const topicsHtml = topics.length
-    ? `<ul style="margin:0 0 16px;padding:0 0 0 20px;">
-        ${topics
-          .map((t) => `<li style="margin:0 0 6px;padding-left:2px;">${escapeHtml(t)}</li>`)
-          .join('')}
-      </ul>`
-    : '';
+  const detailRow = (label, value) =>
+    value
+      ? `<p style="margin:0 0 6px;${P}font-size:14px;line-height:1.55;color:#4A5568;"><strong style="color:#182752;">${label}:</strong> ${rich(value)}</p>`
+      : '';
 
   const media = parseMediaLines(c.mediaText);
   const mediaHtml = media.length
@@ -132,7 +155,7 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
                   .map(({ label, url }) =>
                     url
                       ? `<li style="margin:0 0 6px;"><a href="${escapeHtml(url)}" style="color:#182752;font-weight:700;text-decoration:underline;">${escapeHtml(label)}</a></li>`
-                      : `<li style="margin:0 0 6px;color:#182752;">${escapeHtml(label)}</li>`
+                      : `<li style="margin:0 0 6px;color:#182752;font-weight:700;">${escapeHtml(label)}</li>`
                   )
                   .join('')}
               </ul>
@@ -140,56 +163,67 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
           </tr>`
     : '';
 
-  const detailRow = (label, value) =>
-    value
-      ? `<p style="margin:0 0 6px;${P}font-size:14px;line-height:1.55;color:#4A5568;"><strong style="color:#182752;">${label}:</strong> ${escapeHtml(value)}</p>`
-      : '';
+  const hasEventBox = c.eventWhen || c.eventWhere || c.eventNote || c.registerCtaLabel;
+  const eventBox = hasEventBox
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;background-color:#F7F4EF;border:1px solid #E6E0D8;border-left:4px solid #F2661F;border-radius:8px;">
+                <tr>
+                  <td style="padding:16px 18px 6px;">
+                    ${detailRow('When', c.eventWhen)}
+                    ${detailRow('Where', c.eventWhere)}
+                    ${
+                      c.eventNote
+                        ? `<p style="margin:10px 0 0;${P}font-size:14px;line-height:1.5;color:#F2661F;font-weight:700;">${rich(c.eventNote)}</p>`
+                        : ''
+                    }
+                  </td>
+                </tr>
+                ${
+                  c.registerCtaLabel
+                    ? `<tr>
+                  <td style="padding:10px 18px 18px;">
+                    ${btn(registerUrl, c.registerCtaLabel, { bg: '#F2661F', full: true })}
+                  </td>
+                </tr>`
+                    : ''
+                }
+              </table>`
+    : '';
 
-  const card = ({ image, title, lead, when, where, note, ctaUrl, ctaLabel, ctaBg }) => `
-    <tr>
-      <td style="padding:0 0 16px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border:1px solid #E6E0D8;border-radius:8px;overflow:hidden;">
-          ${
-            image
-              ? `<tr>
-            <td>
-              <img src="${escapeHtml(image)}" alt="" width="552"
-                style="width:100%;max-width:552px;height:auto;display:block;border:0;"/>
-            </td>
-          </tr>`
-              : ''
-          }
-          <tr>
-            <td style="padding:18px 18px 8px;">
-              <h3 style="margin:0 0 12px;${P}font-size:18px;line-height:1.35;color:#182752;font-weight:700;">
-                ${escapeHtml(title)}
-              </h3>
-              ${
-                lead
-                  ? `<p style="margin:0 0 12px;${P}font-size:14px;line-height:1.6;color:#243447;">${escapeHtml(lead)}</p>`
-                  : ''
-              }
-              ${detailRow('When', when)}
-              ${detailRow('Where', where)}
-              ${
-                note
-                  ? `<p style="margin:12px 0 0;${P}font-size:14px;line-height:1.5;color:#F2661F;font-weight:700;">${escapeHtml(note)}</p>`
-                  : ''
-              }
-            </td>
-          </tr>
-          ${
-            ctaUrl && ctaLabel
-              ? `<tr>
-            <td style="padding:8px 18px 20px;">
-              ${btn(ctaUrl, ctaLabel, { bg: ctaBg || '#182752', full: true })}
-            </td>
-          </tr>`
-              : ''
-          }
-        </table>
-      </td>
-    </tr>`;
+  const continuedCard =
+    c.continuedTitle || c.continuedIntro
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;background-color:#ffffff;border:1px solid #E6E0D8;border-radius:8px;">
+                <tr>
+                  <td style="padding:18px 18px 8px;">
+                    ${
+                      c.continuedTitle
+                        ? `<h3 style="margin:0 0 12px;${P}font-size:18px;line-height:1.35;color:#182752;font-weight:700;">${rich(c.continuedTitle)}</h3>`
+                        : ''
+                    }
+                    ${
+                      c.continuedIntro
+                        ? `<p style="margin:0 0 12px;${P}font-size:14px;line-height:1.6;color:#243447;">${rich(c.continuedIntro)}</p>`
+                        : ''
+                    }
+                    ${detailRow('When', c.continuedWhen)}
+                    ${detailRow('Where', c.continuedWhere)}
+                    ${
+                      c.continuedNote
+                        ? `<p style="margin:12px 0 0;${P}font-size:14px;line-height:1.5;color:#F2661F;font-weight:700;">${rich(c.continuedNote)}</p>`
+                        : ''
+                    }
+                  </td>
+                </tr>
+                ${
+                  c.continuedCtaUrl && c.continuedCtaLabel
+                    ? `<tr>
+                  <td style="padding:8px 18px 20px;">
+                    ${btn(c.continuedCtaUrl, c.continuedCtaLabel, { bg: '#182752', full: true })}
+                  </td>
+                </tr>`
+                    : ''
+                }
+              </table>`
+      : '';
 
   return `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
@@ -247,15 +281,21 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
             </td>
           </tr>
 
-          <!-- Banner -->
+          ${
+            showHero
+              ? `<!-- Hero: Luma event cover -->
           <tr>
-            <td bgcolor="#182752" style="padding:0;line-height:0;font-size:0;background-color:#182752;">
-              <img src="${escapeHtml(banner)}" alt="Contour Network at Sibos Miami 2026" width="600"
-                style="width:100%;max-width:600px;height:auto;display:block;border:0;${P}font-size:16px;line-height:1.4;font-weight:700;color:#ffffff;text-align:center;"/>
+            <td bgcolor="#F4EDE4" style="padding:0;line-height:0;font-size:0;background-color:#F4EDE4;">
+              <a href="${escapeHtml(registerUrl)}" style="display:block;">
+                <img src="${escapeHtml(hero)}" alt="Opening Bell: Institutional Breakfast · Unlocking Velocity in Trade &amp; Payments · Sibos Miami 2026" width="600"
+                  style="width:100%;max-width:600px;height:auto;display:block;border:0;${P}font-size:16px;line-height:1.4;font-weight:700;color:#182752;text-align:center;"/>
+              </a>
             </td>
-          </tr>
+          </tr>`
+              : ''
+          }
 
-          <!-- Banner CTA strip -->
+          <!-- Navy strip -->
           <tr>
             <td bgcolor="#182752" class="email-pad" style="background-color:#182752;padding:22px 24px;">
               <p style="margin:0 0 8px;${P}font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#F6C3A8;font-weight:700;">
@@ -267,7 +307,7 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
               <p style="margin:0 0 16px;${P}font-size:14px;line-height:1.55;color:#C9D3E8;">
                 ${escapeHtml(c.subheadline)}
               </p>
-              ${btn(registerUrl, c.registerCtaLabel, { bg: '#F2661F' })}
+              ${btn(registerUrl, c.registerCtaLabel || 'Register', { bg: '#F2661F' })}
             </td>
           </tr>
 
@@ -281,52 +321,31 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
             <td class="email-pad" style="padding:26px 24px 8px;${P}font-size:15px;line-height:1.75;color:#243447;background-color:#ffffff;">
               ${
                 c.greeting
-                  ? `<p style="margin:0 0 16px;font-weight:600;color:#182752;">${escapeHtml(c.greeting)}</p>`
+                  ? `<p style="margin:0 0 16px;font-weight:600;color:#182752;">${rich(c.greeting)}</p>`
                   : ''
               }
-              ${para(c.intro)}
+              ${para(c.intro, '0 0 8px')}
+              ${bullets(c.speakersText)}
               ${para(c.seatsText, '0 0 14px')}
-              <div style="margin:0 0 18px;">${btn(registerUrl, c.registerCtaLabel, { bg: '#F2661F' })}</div>
+              ${eventBox}
               ${para(c.audience)}
               ${para(c.discussionIntro, '0 0 8px')}
-              ${topicsHtml}
+              ${bullets(c.topicsText)}
               ${
                 c.questions
-                  ? `<p style="margin:0;font-weight:700;color:#182752;">${escapeHtml(c.questions)}</p>`
+                  ? `<p style="margin:0;font-weight:700;color:#182752;">${rich(c.questions)}</p>`
                   : ''
               }
             </td>
           </tr>
 
-          <!-- Event cards -->
+          <!-- Continued conversation -->
           <tr>
             <td class="email-pad" style="padding:20px 24px 4px;background-color:#F7F4EF;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                ${card({
-                  image: showEventImage ? eventImg : '',
-                  title: c.eventTitle,
-                  lead: '',
-                  when: c.eventWhen,
-                  where: c.eventWhere,
-                  note: c.eventNote,
-                  ctaUrl: registerUrl,
-                  ctaLabel: c.registerCtaLabel,
-                  ctaBg: '#F2661F',
-                })}
-                ${card({
-                  image: '',
-                  title: c.continuedTitle,
-                  lead: c.continuedIntro,
-                  when: c.continuedWhen,
-                  where: c.continuedWhere,
-                  note: c.continuedNote,
-                  ctaUrl: c.continuedCtaUrl,
-                  ctaLabel: c.continuedCtaLabel,
-                })}
-              </table>
+              ${continuedCard}
               ${
                 c.boothLine
-                  ? `<p style="margin:0 0 18px;text-align:center;${P}font-size:14px;line-height:1.6;color:#182752;font-weight:700;">${escapeHtml(c.boothLine)}</p>`
+                  ? `<p style="margin:0 0 18px;text-align:center;${P}font-size:14px;line-height:1.6;color:#182752;">${rich(c.boothLine)}</p>`
                   : ''
               }
             </td>

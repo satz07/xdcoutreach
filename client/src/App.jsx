@@ -111,13 +111,13 @@ const CONTOUR_DEFAULT_CONTENT = {
 };
 
 const BREAKFAST_DEFAULT_SUBJECT =
-  'Invitation | Sibos breakfast event & dialogue on "Unlocking Velocity in Global Trade to Payments"!';
+  'Invitation | Sibos breakfast event & panel on "Unlocking Velocity in Global Trade to Payments"!';
 
 /** Server fills any missing breakfast fields from defaultContourBreakfastContent(). */
 const BREAKFAST_DEFAULT_CONTENT = {
   templateKind: 'contour-breakfast',
   headline: 'Unlocking Velocity in Global Trade to Payments',
-  eyebrow: 'Sibos Miami · Tuesday, September 29, 2026',
+  eyebrow: 'Sibos Miami · Tuesday, September 29, 2026 · 7:30 – 9:30 AM',
   subheadline: 'Institutional breakfast & global experts panel · The Bass Art Museum, Miami Beach',
   greeting: '',
   intro: '',
@@ -1144,20 +1144,32 @@ export default function App() {
 
             {isBreakfastTemplate ? (
               <>
+                <label className="inline-check">
+                  <input
+                    type="checkbox"
+                    checked={!(content.showHero === false || content.showHero === 'false')}
+                    onChange={(e) => updateField('showHero', e.target.checked)}
+                  />
+                  Show Luma “Opening Bell” image at the top
+                </label>
                 <label>
-                  Banner eyebrow <span className="hint">(small orange line above headline)</span>
+                  Date / time line <span className="hint">(small orange line under the image)</span>
                   <input
                     value={content.eyebrow || ''}
                     onChange={(e) => updateField('eyebrow', e.target.value)}
                   />
                 </label>
                 <label>
-                  Banner sub-line
+                  Header sub-line
                   <input
                     value={content.subheadline || ''}
                     onChange={(e) => updateField('subheadline', e.target.value)}
                   />
                 </label>
+                <p className="hint">
+                  In the text fields below, wrap words in **double stars** for bold and use
+                  [label](https://link) for links.
+                </p>
               </>
             ) : (
               <>
@@ -1208,11 +1220,45 @@ export default function App() {
             {isBreakfastTemplate ? (
               <>
                 <label>
-                  Limited seats line <span className="hint">(followed by the register button)</span>
+                  Panelists &amp; moderator{' '}
+                  <span className="hint">(one per line — shown as bullets under the intro)</span>
+                  <textarea
+                    rows={5}
+                    value={content.speakersText || ''}
+                    onChange={(e) => updateField('speakersText', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Limited seats line
                   <textarea
                     rows={2}
                     value={content.seatsText || ''}
                     onChange={(e) => updateField('seatsText', e.target.value)}
+                  />
+                </label>
+
+                <h4 className="field-group-title">When / Where box (after the seats line)</h4>
+                <div className="row-2">
+                  <label>
+                    When
+                    <input
+                      value={content.eventWhen || ''}
+                      onChange={(e) => updateField('eventWhen', e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Where
+                    <input
+                      value={content.eventWhere || ''}
+                      onChange={(e) => updateField('eventWhere', e.target.value)}
+                    />
+                  </label>
+                </div>
+                <label>
+                  Orange note
+                  <input
+                    value={content.eventNote || ''}
+                    onChange={(e) => updateField('eventNote', e.target.value)}
                   />
                 </label>
                 <div className="row-2">
@@ -1262,46 +1308,6 @@ export default function App() {
                     value={content.questions || ''}
                     onChange={(e) => updateField('questions', e.target.value)}
                   />
-                </label>
-
-                <h4 className="field-group-title">Breakfast card</h4>
-                <label>
-                  Title
-                  <input
-                    value={content.eventTitle || ''}
-                    onChange={(e) => updateField('eventTitle', e.target.value)}
-                  />
-                </label>
-                <div className="row-2">
-                  <label>
-                    When
-                    <input
-                      value={content.eventWhen || ''}
-                      onChange={(e) => updateField('eventWhen', e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Where
-                    <input
-                      value={content.eventWhere || ''}
-                      onChange={(e) => updateField('eventWhere', e.target.value)}
-                    />
-                  </label>
-                </div>
-                <label>
-                  Orange note
-                  <input
-                    value={content.eventNote || ''}
-                    onChange={(e) => updateField('eventNote', e.target.value)}
-                  />
-                </label>
-                <label className="inline-check">
-                  <input
-                    type="checkbox"
-                    checked={!(content.showEventImage === false || content.showEventImage === 'false')}
-                    onChange={(e) => updateField('showEventImage', e.target.checked)}
-                  />
-                  Show breakfast image
                 </label>
 
                 <h4 className="field-group-title">Continued conversation (Discover Stage)</h4>
