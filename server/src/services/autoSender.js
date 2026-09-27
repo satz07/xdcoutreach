@@ -16,6 +16,10 @@ let startedBy = null;
 let scopedEventId = null;
 let requeueRunning = false;
 let lastRequeue = null;
+// Per-run cap: null = unlimited. Persisted so a Railway restart can't reset the count.
+let runLimit = null;
+let runSent = 0;
+let stopReason = null;
 
 async function ensureSettingsTable() {
   await pool.query(`
@@ -56,6 +60,21 @@ async function setEnabledFlag(on, userId = null, eventId = null) {
   }
 }
 
+async function setSetting(key, value) {
+  await ensureSettingsTable();
+  await pool.query(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+    [key, String(value ?? '')]
+  );
+}
+
+async function getSetting(key) {
+  const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = $1 LIMIT 1`, [key]);
+  return rows[0]?.value ?? null;
+}
+
 async function loadEnabledFlag() {
   await ensureSettingsTable();
   const { rows } = await pool.query(
@@ -66,6 +85,11 @@ async function loadEnabledFlag() {
   );
   const raw = ev.rows[0]?.value;
   scopedEventId = raw && /^\d+$/.test(raw) ? Number(raw) : null;
+  const lim = await getSetting('auto_send_limit');
+  runLimit = lim && /^\d+$/.test(lim) && Number(lim) > 0 ? Number(lim) : null;
+  const cnt = await getSetting('auto_send_run_sent');
+  runSent = cnt && /^\d+$/.test(cnt) ? Number(cnt) : 0;
+  stopReason = (await getSetting('auto_send_stop_reason')) || null;
   return rows[0]?.value === 'true';
 }
 
@@ -278,7 +302,12 @@ async function processOneTick() {
   const startedAt = new Date().toISOString();
   try {
     await reclaimStaleSending();
-    const rows = await claimBatch(BATCH_SIZE);
+    const remaining = runLimit ? runLimit - runSent : Infinity;
+    if (remaining <= 0) {
+      await haltForLimit();
+      return lastTick;
+    }
+    const rows = await claimBatch(Math.min(BATCH_SIZE, remaining));
     if (rows.length === 0) {
       lastTick = {
         at: startedAt,
@@ -376,6 +405,9 @@ async function processOneTick() {
       }
     }
 
+    runSent += success;
+    await setSetting('auto_send_run_sent', runSent);
+
     lastTick = {
       at: startedAt,
       claimed: rows.length,
@@ -387,8 +419,10 @@ async function processOneTick() {
     };
     lastError = null;
     console.log(
-      `[auto-send] ${rows.length}: ${success} sent, ${failure} failed/retry (ids ${rows[0].id}-${rows[rows.length - 1].id})`
+      `[auto-send] ${rows.length}: ${success} sent, ${failure} failed/retry (ids ${rows[0].id}-${rows[rows.length - 1].id})` +
+        (runLimit ? ` · run ${runSent}/${runLimit}` : '')
     );
+    if (runLimit && runSent >= runLimit) await haltForLimit();
     return lastTick;
   } catch (err) {
     lastError = err.message;
@@ -418,25 +452,41 @@ function schedule() {
   }, 2000);
 }
 
-async function startAutoSend(userId = null, eventId = null) {
+async function startAutoSend(userId = null, eventId = null, limit = null) {
   enabled = true;
   startedBy = userId;
   if (eventId != null && eventId !== '') {
     scopedEventId = Number(eventId) || null;
   }
+  const n = Math.floor(Number(limit));
+  runLimit = Number.isFinite(n) && n > 0 ? n : null;
+  runSent = 0;
+  stopReason = null;
+  await setSetting('auto_send_limit', runLimit || '');
+  await setSetting('auto_send_run_sent', 0);
+  await setSetting('auto_send_stop_reason', '');
   await setEnabledFlag(true, userId, scopedEventId);
   schedule();
   return getStatus();
 }
 
-async function stopAutoSend() {
+async function stopAutoSend(reason = null) {
   enabled = false;
   if (timer) {
     clearInterval(timer);
     timer = null;
   }
+  stopReason = reason;
+  await setSetting('auto_send_stop_reason', reason || '');
   await setEnabledFlag(false);
   return getStatus();
+}
+
+async function haltForLimit() {
+  const reason = `batch limit reached: ${runSent}/${runLimit} sent — restart to send the next batch`;
+  console.log(`[auto-send] ${reason}`);
+  lastTick = { ...(lastTick || {}), note: reason };
+  await stopAutoSend(reason);
 }
 
 async function getStatus() {
@@ -458,7 +508,10 @@ async function getStatus() {
     `SELECT COUNT(*)::int AS n FROM email_sends WHERE status = 'failed' ${scopeClause}`,
     scopeParams
   );
-  const etaMin = pending.rows[0].n > 0 ? Math.ceil(pending.rows[0].n / BATCH_SIZE) : 0;
+  const toSend = runLimit
+    ? Math.min(pending.rows[0].n, Math.max(0, runLimit - runSent))
+    : pending.rows[0].n;
+  const etaMin = toSend > 0 ? Math.ceil(toSend / BATCH_SIZE) : 0;
 
   let eventName = null;
   if (scopedEventId) {
@@ -480,6 +533,9 @@ async function getStatus() {
     sent: sent.rows[0].n,
     failed: failed.rows[0].n,
     etaMinutes: etaMin,
+    runLimit,
+    runSent,
+    stopReason,
     lastTick,
     lastError,
     lastRequeue,

@@ -257,6 +257,7 @@ export default function App() {
   const [sendingVerified, setSendingVerified] = useState(false);
   const [autoSend, setAutoSend] = useState(null);
   const [autoSendBusy, setAutoSendBusy] = useState(false);
+  const [autoSendLimit, setAutoSendLimit] = useState('100');
   const [queueBusy, setQueueBusy] = useState(false);
 
   const [newEvent, setNewEvent] = useState({
@@ -489,7 +490,7 @@ export default function App() {
     try {
       const res = autoSend?.enabled
         ? await api.autoSendStop()
-        : await api.autoSendStart(eventId);
+        : await api.autoSendStart(eventId, autoSendLimit);
       setAutoSend(res);
       setNotice(res.message || (res.enabled ? 'Auto-send started' : 'Auto-send stopped'));
       loadHistory();
@@ -1944,6 +1945,22 @@ export default function App() {
               <button className="ghost" onClick={loadHistory} disabled={loadingHistory}>
                 {loadingHistory ? 'Loading…' : 'Refresh'}
               </button>
+              <label
+                className="auto-limit"
+                title="Auto-send stops by itself after this many emails are sent. Leave empty for no limit."
+              >
+                Send
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="all"
+                  value={autoSendLimit}
+                  disabled={autoSend?.enabled || autoSendBusy}
+                  onChange={(e) => setAutoSendLimit(e.target.value.replace(/[^\d]/g, ''))}
+                />
+                then stop
+              </label>
               <button
                 className={autoSend?.enabled ? 'danger' : 'primary'}
                 disabled={autoSendBusy || sendingVerified || !eventId}
@@ -2001,6 +2018,14 @@ export default function App() {
               {' · '}
               pending {autoSend.pending ?? '—'}
               {autoSend.sent != null ? ` · sent ${autoSend.sent}` : ''}
+              {autoSend.runLimit
+                ? ` · this batch: ${autoSend.runSent ?? 0}/${autoSend.runLimit}`
+                : autoSend.enabled
+                  ? ' · no batch limit'
+                  : ''}
+              {!autoSend.enabled && autoSend.stopReason ? (
+                <strong>{` · ${autoSend.stopReason}`}</strong>
+              ) : null}
               {autoSend.enabled && autoSend.etaMinutes != null
                 ? ` · ~${autoSend.etaMinutes} min left`
                 : ''}

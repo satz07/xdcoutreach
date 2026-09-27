@@ -1328,12 +1328,17 @@ router.post('/sends/auto/start', async (req, res) => {
   try {
     const { startAutoSend, getStatus } = require('../services/autoSender');
     const eventId = req.body?.eventId || req.body?.event_id || null;
-    await startAutoSend(req.user?.id || null, eventId);
+    const limit = req.body?.limit;
+    if (limit != null && limit !== '' && !(Number(limit) > 0)) {
+      return res.status(400).json({ error: 'limit must be a positive number (or empty for no limit)' });
+    }
+    await startAutoSend(req.user?.id || null, eventId, limit);
     const status = await getStatus();
     res.json({
       ok: true,
       message: `Verified auto-send started: ${status.batchSize}/min` +
-        (status.eventId ? ` for event #${status.eventId}` : ' (all events)'),
+        (status.eventId ? ` for event #${status.eventId}` : ' (all events)') +
+        (status.runLimit ? ` · stops after ${status.runLimit} sent` : ' · no limit'),
       ...status,
     });
   } catch (err) {

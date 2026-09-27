@@ -116,10 +116,13 @@ export const api = {
   importSends: (body) =>
     request('/sends/import', { method: 'POST', body: JSON.stringify(body) }),
   autoSendStatus: () => request('/sends/auto'),
-  autoSendStart: (eventId) =>
+  autoSendStart: (eventId, limit) =>
     request('/sends/auto/start', {
       method: 'POST',
-      body: JSON.stringify(eventId ? { eventId } : {}),
+      body: JSON.stringify({
+        ...(eventId ? { eventId } : {}),
+        ...(limit ? { limit: Number(limit) } : {}),
+      }),
     }),
   autoSendStop: () => request('/sends/auto/stop', { method: 'POST', body: '{}' }),
   campaigns: (eventId) =>

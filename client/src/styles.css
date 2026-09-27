@@ -445,6 +445,24 @@ button.danger:hover:not(:disabled) {
   color: var(--muted);
 }
 
+label.auto-limit {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+label.auto-limit input {
+  width: 76px;
+  margin: 0;
+  padding: 6px 8px;
+}
+
 button.ghost {
   background: #fff;
   border-color: var(--line);
