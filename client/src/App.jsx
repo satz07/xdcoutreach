@@ -10,6 +10,7 @@ import {
   getInviteTokenFromUrl,
 } from './api';
 import LoginScreen from './LoginScreen';
+import RecipientsInput from './RecipientsInput';
 
 const DEFAULT_SUBJECT =
   'Meet XDC Network & Contour at Sibos 2026: Agentic Payments, Trade Finance & Real-Time Settlement';
@@ -1753,13 +1754,15 @@ export default function App() {
             <label>
               Recipients for this event{' '}
               <span className="hint">
-                (paste emails or upload Excel/CSV — then add to Send History as pending)
+                (type a name or email for suggestions, paste emails, or upload Excel/CSV — then add
+                to Send History as pending)
               </span>
-              <textarea
+              <RecipientsInput
                 rows={6}
-                placeholder="alice@bank.com&#10;bob@corp.com"
+                placeholder={'Start typing a name or email…\nalice@bank.com\nbob@corp.com'}
                 value={recipients}
-                onChange={(e) => setRecipients(e.target.value)}
+                onChange={setRecipients}
+                eventId={eventId}
               />
             </label>
             <div className="actions" style={{ marginTop: 8, gap: 12, flexWrap: 'wrap' }}>

@@ -1368,6 +1368,54 @@ router.post('/sends/requeue-unverified', requireSuperAdmin, async (_req, res) =>
 });
 
 /** Send history with filters */
+/** Compose type-ahead: known contacts matching email, name or company. */
+router.get('/recipients/suggest', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    if (q.length < 2) return res.json({ items: [] });
+    const limit = Math.min(Number(req.query.limit) || 8, 20);
+    const eventId = req.query.eventId ? Number(req.query.eventId) : null;
+    const like = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+    const prefix = `${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+
+    const { rows } = await pool.query(
+      `WITH contacts AS (
+         SELECT LOWER(email) AS email, name, company, event_id, updated_at AS seen_at
+         FROM event_participants
+         UNION ALL
+         SELECT LOWER(recipient_email), NULL, NULL, event_id, COALESCE(sent_at, created_at)
+         FROM email_sends
+       ),
+       grouped AS (
+         SELECT email,
+                MAX(name) AS name,
+                MAX(company) AS company,
+                MAX(seen_at) AS last_seen,
+                BOOL_OR(event_id = $4) AS in_event
+         FROM contacts
+         WHERE email LIKE $1 OR LOWER(COALESCE(name, '')) LIKE $1 OR LOWER(COALESCE(company, '')) LIKE $1
+         GROUP BY email
+       )
+       SELECT email, name, company, COALESCE(in_event, FALSE) AS in_event
+       FROM grouped
+       ORDER BY
+         CASE
+           WHEN email LIKE $2 THEN 0
+           WHEN LOWER(COALESCE(name, '')) LIKE $2 THEN 1
+           WHEN SPLIT_PART(email, '@', 2) LIKE $2 THEN 2
+           ELSE 3
+         END,
+         last_seen DESC NULLS LAST,
+         email
+       LIMIT $3`,
+      [like, prefix, limit, eventId]
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/sends', async (req, res) => {
   try {
     const { q, status, limit = 50, offset = 0, campaignId, eventId } = req.query;

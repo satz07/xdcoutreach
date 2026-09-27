@@ -98,6 +98,11 @@ export const api = {
     const q = new URLSearchParams(params).toString();
     return request(`/sends?${q}`);
   },
+  suggestRecipients: (q, eventId) => {
+    const params = new URLSearchParams({ q });
+    if (eventId) params.set('eventId', eventId);
+    return request(`/recipients/suggest?${params}`);
+  },
   resend: (id) => request(`/sends/${id}/resend`, { method: 'POST' }),
   resendBulk: (ids) =>
     request('/sends/resend-bulk', { method: 'POST', body: JSON.stringify({ ids }) }),
