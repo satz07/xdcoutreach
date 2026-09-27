@@ -1221,7 +1221,9 @@ export default function App() {
               <>
                 <label>
                   Panelists &amp; moderator{' '}
-                  <span className="hint">(one per line — shown as bullets under the intro)</span>
+                  <span className="hint">
+                    (one per line; a line ending in “:” like “Moderator:” becomes a heading)
+                  </span>
                   <textarea
                     rows={5}
                     value={content.speakersText || ''}

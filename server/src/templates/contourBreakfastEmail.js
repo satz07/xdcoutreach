@@ -57,11 +57,15 @@ function defaultContourBreakfastContent() {
     intro:
       '[Contour Network](https://www.contour.network), along with co-hosts **SAP** and **Eastnets** is convening an institutional breakfast event and global experts panel on the above topic at Sibos Miami featuring global industry leaders:',
     speakersText: [
+      'Opening Remarks:',
+      'Atul Khekade, Co-Founder, **XDC Network**',
+      'Panel Speakers:',
       'Alexandre Kech, CEO, **Global Legal Entity Identifier Foundation (GLEIF)**',
       'Sulabh Agarwal, Global Payments Lead, **Accenture**',
       'Kiran Mistry, Regional VP, Head of Financial Services APAC, **SAP**',
       'Baiba Miezere, Group Product Development Director, **Eastnets**',
-      'Moderator: Rahul Bhargava, Interim COO, **Contour Network**',
+      'Moderator:',
+      'Rahul Bhargava, Interim COO, **Contour Network**',
     ].join('\n'),
     seatsText: 'As there are limited seats left, we welcome you to register at the earliest.',
     eventWhen: 'Tuesday, September 29, from 7:30 to 9:30 a.m. EDT',
@@ -132,6 +136,34 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
           .join('')}
       </ul>`
       : '';
+  };
+
+  /** Lines ending in ":" become small group headings; other lines are bullets under them. */
+  const groupedList = (text, margin = '0 0 16px') => {
+    const groups = [];
+    for (const line of linesOf(text)) {
+      if (/:$/.test(line) && !line.includes('**')) groups.push({ title: line.slice(0, -1), items: [] });
+      else {
+        if (!groups.length) groups.push({ title: '', items: [] });
+        groups[groups.length - 1].items.push(line);
+      }
+    }
+    if (!groups.length) return '';
+    return `<div style="margin:${margin};">${groups
+      .map(
+        (g) => `${
+          g.title
+            ? `<p style="margin:12px 0 4px;font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:#F2661F;font-weight:700;">${rich(g.title)}</p>`
+            : ''
+        }${
+          g.items.length
+            ? `<ul style="margin:0;padding:0 0 0 20px;">${g.items
+                .map((t) => `<li style="margin:0 0 6px;padding-left:2px;">${rich(t)}</li>`)
+                .join('')}</ul>`
+            : ''
+        }`
+      )
+      .join('')}</div>`;
   };
 
   const signOffHtml = escapeHtml(c.signOff)
@@ -325,7 +357,7 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
                   : ''
               }
               ${para(c.intro, '0 0 8px')}
-              ${bullets(c.speakersText)}
+              ${groupedList(c.speakersText)}
               ${para(c.seatsText, '0 0 14px')}
               ${eventBox}
               ${para(c.audience)}
