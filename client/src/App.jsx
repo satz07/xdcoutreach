@@ -285,6 +285,7 @@ export default function App() {
   const [users, setUsers] = useState([]);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteLinkNotice, setInviteLinkNotice] = useState('');
+  const [resendingId, setResendingId] = useState(null);
   const [quota, setQuota] = useState(null);
   const [limitEdits, setLimitEdits] = useState({});
 
@@ -540,6 +541,23 @@ export default function App() {
       loadUsers();
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  async function handleResendInvite(u) {
+    setError('');
+    setNotice('');
+    setInviteLinkNotice('');
+    setResendingId(u.id);
+    try {
+      const res = await api.resendInvite(u.id);
+      setNotice(res.message || `Invite re-sent to ${u.email}`);
+      if (res.inviteLink) setInviteLinkNotice(res.inviteLink);
+      loadUsers();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -1058,7 +1076,18 @@ export default function App() {
                       )}
                     </td>
                     <td>{formatTime(u.last_login_at)}</td>
-                    <td>
+                    <td className="user-actions">
+                      {u.role !== 'superadmin' && (!u.active || !u.has_password) && (
+                        <button
+                          type="button"
+                          className="ghost"
+                          disabled={resendingId === u.id}
+                          onClick={() => handleResendInvite(u)}
+                          title="Email a fresh invite link (valid 7 days)"
+                        >
+                          {resendingId === u.id ? 'Sending…' : 'Resend invite'}
+                        </button>
+                      )}
                       {u.role !== 'superadmin' && u.active && (
                         <button
                           type="button"

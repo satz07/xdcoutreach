@@ -69,6 +69,7 @@ export const api = {
   updateUser: (id, body) =>
     request(`/auth/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deactivateUser: (id) => request(`/auth/users/${id}/deactivate`, { method: 'POST' }),
+  resendInvite: (id) => request(`/auth/users/${id}/resend-invite`, { method: 'POST' }),
   events: () => request('/events'),
   createEvent: (body) => request('/events', { method: 'POST', body: JSON.stringify(body) }),
   mailProviders: () => request('/mail-providers'),

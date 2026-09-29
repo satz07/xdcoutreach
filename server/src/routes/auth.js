@@ -301,6 +301,62 @@ router.patch('/users/:id', requireAuth, requireSuperAdmin, async (req, res) => {
   }
 });
 
+/**
+ * POST /auth/users/:id/resend-invite — superadmin only.
+ * Issues a fresh invite link (new expiry) and emails it. Keeps the send limit.
+ * Active admins who already set a password are refused so their login isn't wiped.
+ */
+router.post('/users/:id/resend-invite', requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT * FROM users WHERE id = $1`, [req.params.id]);
+    const user = rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.role === 'superadmin') {
+      return res.status(400).json({ error: 'Cannot re-invite superadmin' });
+    }
+    if (user.active && user.password_hash) {
+      return res.status(400).json({ error: `${user.email} is already active and has a password` });
+    }
+
+    const inviteToken = generateInviteToken();
+    const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
+    const inviteLink = `${frontendUrl()}/?invite=${inviteToken}`;
+
+    await pool.query(
+      `UPDATE users SET
+         active = TRUE,
+         password_hash = NULL,
+         invited_by = $2,
+         invite_token = $3,
+         invite_token_expires_at = $4
+       WHERE id = $1`,
+      [user.id, req.user.email, inviteToken, expiresAt]
+    );
+
+    let emailSent = false;
+    let emailError = null;
+    try {
+      await sendInviteEmail(user.email, req.user.email, inviteLink);
+      emailSent = true;
+    } catch (err) {
+      console.error('resend invite email failed:', err.message);
+      emailError = err.message;
+    }
+
+    res.json({
+      ok: true,
+      inviteLink,
+      emailSent,
+      emailError,
+      message: emailSent
+        ? `Invite re-sent to ${user.email}`
+        : `New invite link created. Email could not be sent — share this link: ${inviteLink}`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /** POST /auth/users/:id/deactivate — superadmin only */
 router.post('/users/:id/deactivate', requireAuth, requireSuperAdmin, async (req, res) => {
   try {

@@ -445,6 +445,14 @@ button.danger:hover:not(:disabled) {
   color: var(--muted);
 }
 
+td.user-actions {
+  white-space: nowrap;
+}
+
+td.user-actions button + button {
+  margin-left: 6px;
+}
+
 label.auto-limit {
   display: inline-flex;
   flex-direction: row;
