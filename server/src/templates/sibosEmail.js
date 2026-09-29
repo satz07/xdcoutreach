@@ -4,6 +4,8 @@
  *
  * XDC theme: Navy #15294C · Blue #254C82 · Accent #416BAA · Light #F4F7FB
  */
+const { MEETING_PLACEHOLDER, usesMeetingForm } = require('./meeting');
+
 function escapeHtml(str = '') {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -124,14 +126,16 @@ function buildSibosEmailHtml(overrides = {}) {
     ctaLinkType = 'mailto',
     ctaUrl,
     ctaLabel = 'Schedule a Meeting',
+    meetingForm,
     footerNote = 'XDC Network & Contour · Sibos 2026 · Booth #DISS 43',
     xdcLogoSrc = 'cid:xdc-logo',
     contourLogoSrc = 'cid:contour-logo',
     topics,
   } = overrides;
 
-  const meetingHref =
-    ctaUrl ||
+  const meetingHref = usesMeetingForm(meetingForm)
+    ? MEETING_PLACEHOLDER
+    : ctaUrl ||
     buildMeetingLink({
       email: ctaEmail,
       subject: ctaMailtoSubject,

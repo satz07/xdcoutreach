@@ -3,8 +3,10 @@
  * Brand: Navy #182752 · Orange #F2661F · Cream #F7F4EF · Ink #1A2332
  * Contour logo: same CID asset as Sibos 2026 email (public/logos/contour.png → cid:contour-logo).
  * Other assets served from /events/contour-sibos/ (public URLs via APP_URL).
- * "Book a meeting" → Calendly (https://calendly.com/rahul-contour).
+ * "Book a meeting" → per-recipient lead form (meetingForm, default) or Calendly when meetingForm=false.
  */
+const { MEETING_PLACEHOLDER, usesMeetingForm } = require('./meeting');
+
 
 function escapeHtml(str = '') {
   return String(str)
@@ -57,6 +59,7 @@ function buildContourSibosEmailHtml(overrides = {}) {
     boothBody = 'Schedule a private meeting with a Contour Network professional to discuss what’s next for your organization.',
     boothCtaLabel = 'Book a meeting',
     boothCtaUrl = 'https://calendly.com/rahul-contour',
+    meetingForm,
     /** Set false/empty to hide booth photo (date/location already on banner). */
     showBoothImage = false,
     breakfastTitle = 'Industry networking breakfast and Experts Panel',
@@ -96,7 +99,9 @@ function buildContourSibosEmailHtml(overrides = {}) {
   const breakfastImg = breakfastImgSrc || img('breakfast.jpg');
   const discoverImg = discoverImgSrc || img('discover-stage.jpg');
 
-  const meetingHref = boothCtaUrl || 'https://calendly.com/rahul-contour';
+  const meetingHref = usesMeetingForm(meetingForm)
+    ? MEETING_PLACEHOLDER
+    : boothCtaUrl || 'https://calendly.com/rahul-contour';
 
   const signOffHtml = escapeHtml(signOff)
     .split('\n')

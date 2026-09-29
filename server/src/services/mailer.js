@@ -26,7 +26,8 @@ function assetBaseUrl() {
  */
 function prepareOutboundHtml(html, { embedLogoCid = true } = {}) {
   const base = assetBaseUrl();
-  let out = String(html || '');
+  const { personalizeHtml } = require('./leads');
+  let out = personalizeHtml(String(html || ''));
 
   if (base) {
     out = out
@@ -835,6 +836,9 @@ async function sendOneViaSmtpProvider(provider, { to, subject, html, text, fromN
  */
 async function sendOneForEvent(eventId, { to, subject, html, text, fromName }) {
   const { getProviderForEvent, resolvePostmarkToken } = require('./mailProviders');
+  const { personalizeHtml } = require('./leads');
+  html = personalizeHtml(html, { eventId, email: to });
+  if (text) text = personalizeHtml(text, { eventId, email: to });
   const provider = await getProviderForEvent(eventId);
   if (!provider || !provider.id) {
     throw new Error(

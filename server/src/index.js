@@ -31,6 +31,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use('/logos', express.static(path.join(__dirname, '../../public/logos')));
 app.use('/events', express.static(path.join(__dirname, '../../public/events')));
 app.use('/api/auth', auth);
+// Must be mounted before `api`, whose router-level requireAuth would reject public form calls.
+app.use('/api/public', require('./routes/publicLeads'));
+app.use('/api/leads', require('./routes/leads'));
 app.use('/api', api);
 
 app.get('/', (_req, res) => {
@@ -187,6 +190,45 @@ async function ensureSchema() {
       ALTER TABLE email_campaigns ADD COLUMN IF NOT EXISTS sent_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
       ALTER TABLE email_sends ADD COLUMN IF NOT EXISTS sent_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
       ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS content_json JSONB;
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS meeting_leads (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
+        email TEXT NOT NULL,
+        name TEXT,
+        company TEXT,
+        job_title TEXT,
+        phone TEXT,
+        preferred_date TEXT,
+        preferred_time TEXT,
+        meeting_mode TEXT,
+        topic TEXT,
+        message TEXT,
+        status TEXT NOT NULL DEFAULT 'new',
+        owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        verified BOOLEAN NOT NULL DEFAULT FALSE,
+        submit_count INTEGER NOT NULL DEFAULT 1,
+        ip TEXT,
+        user_agent TEXT,
+        last_submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_meeting_leads_event ON meeting_leads(event_id);
+      CREATE INDEX IF NOT EXISTS idx_meeting_leads_email ON meeting_leads(email);
+      CREATE INDEX IF NOT EXISTS idx_meeting_leads_status ON meeting_leads(status);
+
+      CREATE TABLE IF NOT EXISTS lead_notes (
+        id SERIAL PRIMARY KEY,
+        lead_id INTEGER NOT NULL REFERENCES meeting_leads(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        body TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'note',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_notes_lead ON lead_notes(lead_id);
     `);
 
     await client.query(`

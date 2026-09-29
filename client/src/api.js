@@ -128,7 +128,40 @@ export const api = {
   autoSendStop: () => request('/sends/auto/stop', { method: 'POST', body: '{}' }),
   campaigns: (eventId) =>
     request(eventId ? `/campaigns?eventId=${eventId}` : '/campaigns'),
+
+  meetForm: ({ token, event }) => {
+    const params = new URLSearchParams();
+    if (token) params.set('token', token);
+    if (event) params.set('event', event);
+    return request(`/public/meet?${params}`);
+  },
+  submitMeet: (body) => request('/public/meet', { method: 'POST', body: JSON.stringify(body) }),
+
+  leads: (filters = {}) => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) if (v) params.set(k, v);
+    return request(`/leads?${params}`);
+  },
+  lead: (id) => request(`/leads/${id}`),
+  updateLead: (id, body) => request(`/leads/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  addLeadNote: (id, body) =>
+    request(`/leads/${id}/notes`, { method: 'POST', body: JSON.stringify({ body }) }),
+  deleteLead: (id) => request(`/leads/${id}`, { method: 'DELETE' }),
+  leadOwners: () => request('/leads/owners'),
+  leadSettings: (eventId) => request(`/leads/settings${eventId ? `?eventId=${eventId}` : ''}`),
+  saveLeadSettings: (notifyEmails) =>
+    request('/leads/settings', { method: 'PUT', body: JSON.stringify({ notifyEmails }) }),
 };
+
+export function getMeetParamsFromUrl() {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    if (!q.has('meet')) return null;
+    return { token: q.get('meet') || '', event: q.get('event') || '' };
+  } catch {
+    return null;
+  }
+}
 
 export function logoUrl(name) {
   return `${API_BASE}/logos/${name}`;

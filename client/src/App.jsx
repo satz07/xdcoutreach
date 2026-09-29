@@ -11,6 +11,7 @@ import {
 } from './api';
 import LoginScreen from './LoginScreen';
 import RecipientsInput from './RecipientsInput';
+import LeadsPanel from './LeadsPanel';
 
 const DEFAULT_SUBJECT =
   'Meet XDC Network & Contour at Sibos 2026: Agentic Payments, Trade Finance & Real-Time Settlement';
@@ -227,7 +228,10 @@ export default function App() {
   const [user, setUser] = useState(() => (getToken() ? getStoredUser() : null));
   const [authChecking, setAuthChecking] = useState(() => Boolean(getToken()));
 
-  const [tab, setTab] = useState('compose');
+  const [tab, setTab] = useState(() => {
+    const t = new URLSearchParams(window.location.search).get('tab');
+    return ['compose', 'history', 'events', 'leads', 'admins'].includes(t) ? t : 'compose';
+  });
   const [health, setHealth] = useState(null);
   const [events, setEvents] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -344,6 +348,18 @@ export default function App() {
 
   const isContourTemplate = content.templateKind === 'contour-sibos';
   const isBreakfastTemplate = content.templateKind === 'contour-breakfast';
+  const meetingFormOn = !(content.meetingForm === false || content.meetingForm === 'false');
+  const meetingFormToggle = (
+    <label className="inline-check">
+      <input
+        type="checkbox"
+        checked={meetingFormOn}
+        onChange={(e) => updateField('meetingForm', e.target.checked)}
+      />
+      Meeting button opens our meeting form{' '}
+      <span className="hint">(each recipient gets a personal link; responses land in the Leads tab)</span>
+    </label>
+  );
 
   const loadBase = useCallback(async () => {
     if (!user) return;
@@ -389,7 +405,8 @@ export default function App() {
     if (!user) return;
     try {
       const { html } = await api.preview(contentPayload);
-      setPreviewHtml(html);
+      const sampleMeetUrl = `${window.location.origin}/?meet=${eventId ? `&event=${eventId}` : ''}`;
+      setPreviewHtml(String(html || '').split('{{MEETING_URL}}').join(sampleMeetUrl));
     } catch (err) {
       setError(err.message);
     }
@@ -946,6 +963,9 @@ export default function App() {
             <button className={tab === 'events' ? 'active' : ''} onClick={() => setTab('events')}>
               Events
             </button>
+            <button className={tab === 'leads' ? 'active' : ''} onClick={() => setTab('leads')}>
+              Leads
+            </button>
             {isSuperAdmin && (
               <button className={tab === 'admins' ? 'active' : ''} onClick={() => setTab('admins')}>
                 Invite Admins
@@ -1415,6 +1435,38 @@ export default function App() {
                   />
                 </label>
 
+                <h4 className="field-group-title">1:1 meeting card</h4>
+                {meetingFormToggle}
+                {meetingFormOn && (
+                  <>
+                    <label>
+                      Card title
+                      <input
+                        value={content.meetingTitle ?? 'Prefer a 1:1 meeting at Sibos?'}
+                        onChange={(e) => updateField('meetingTitle', e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Card text
+                      <textarea
+                        rows={2}
+                        value={
+                          content.meetingText ??
+                          'Tell us when suits you and what you would like to discuss — the **Contour** team will get back to you to confirm a time.'
+                        }
+                        onChange={(e) => updateField('meetingText', e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Button label
+                      <input
+                        value={content.meetingCtaLabel ?? 'Request a meeting'}
+                        onChange={(e) => updateField('meetingCtaLabel', e.target.value)}
+                      />
+                    </label>
+                  </>
+                )}
+
                 <h4 className="field-group-title">Media coverage</h4>
                 <label>
                   Intro
@@ -1516,14 +1568,17 @@ export default function App() {
                     />
                   </label>
                   <label>
-                    Book meeting URL (Calendly)
+                    Book meeting URL (Calendly){' '}
+                    {meetingFormOn && <span className="hint">(unused while meeting form is on)</span>}
                     <input
                       placeholder="https://calendly.com/rahul-contour"
                       value={content.boothCtaUrl || ''}
+                      disabled={meetingFormOn}
                       onChange={(e) => updateField('boothCtaUrl', e.target.value)}
                     />
                   </label>
                 </div>
+                {meetingFormToggle}
                 <label>
                   Booth where
                   <input
@@ -1723,6 +1778,7 @@ export default function App() {
                   />
                 </label>
 
+                {meetingFormToggle}
                 <div className="row-2">
                   <label>
                     CTA button label
@@ -2169,6 +2225,15 @@ export default function App() {
             </button>
           </div>
         </main>
+      )}
+
+      {tab === 'leads' && (
+        <LeadsPanel
+          events={events}
+          currentEventId={eventId}
+          user={user}
+          isSuperAdmin={isSuperAdmin}
+        />
       )}
 
       {tab === 'events' && (

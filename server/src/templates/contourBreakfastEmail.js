@@ -6,6 +6,7 @@
  * Text fields support **bold** and [label](https://url).
  */
 const { escapeHtml, resolveAssetBase, btn } = require('./contourSibosEmail');
+const { MEETING_PLACEHOLDER, usesMeetingForm } = require('./meeting');
 
 const P = 'font-family:Arial,Helvetica,sans-serif;';
 
@@ -96,6 +97,11 @@ function defaultContourBreakfastContent() {
     continuedCtaLabel: 'Register here',
     continuedCtaUrl: 'https://luma.com/tnotpk0e',
     boothLine: 'Or visit us at the **Contour** booth in the Discovery Zone, Booth #DISS43!',
+    meetingForm: true,
+    meetingTitle: 'Prefer a 1:1 meeting at Sibos?',
+    meetingText:
+      'Tell us when suits you and what you would like to discuss — the **Contour** team will get back to you to confirm a time.',
+    meetingCtaLabel: 'Request a meeting',
     mediaIntro: 'As additional reference - some media coverage around this Sibos breakfast event:',
     mediaText: [
       'Post by Global Trade Review | LinkedIn | https://www.linkedin.com/posts/sibos2026-tradefinance-payments-share-7508895620678541313-tESZ/',
@@ -260,6 +266,31 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
               </table>`
       : '';
 
+  const meetingCard =
+    usesMeetingForm(c.meetingForm) && c.meetingCtaLabel
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;background-color:#ffffff;border:1px solid #E6E0D8;border-left:4px solid #182752;border-radius:8px;">
+                <tr>
+                  <td style="padding:18px 18px 6px;">
+                    ${
+                      c.meetingTitle
+                        ? `<h3 style="margin:0 0 8px;${P}font-size:17px;line-height:1.35;color:#182752;font-weight:700;">${rich(c.meetingTitle)}</h3>`
+                        : ''
+                    }
+                    ${
+                      c.meetingText
+                        ? `<p style="margin:0;${P}font-size:14px;line-height:1.6;color:#243447;">${rich(c.meetingText)}</p>`
+                        : ''
+                    }
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 18px 18px;">
+                    ${btn(MEETING_PLACEHOLDER, c.meetingCtaLabel, { bg: '#F2661F', full: true })}
+                  </td>
+                </tr>
+              </table>`
+      : '';
+
   return `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -382,6 +413,7 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
           <tr>
             <td class="email-pad" style="padding:20px 24px 4px;background-color:#F7F4EF;">
               ${continuedCard}
+              ${meetingCard}
               ${
                 c.boothLine
                   ? `<p style="margin:0 0 18px;text-align:center;${P}font-size:14px;line-height:1.6;color:#182752;">${rich(c.boothLine)}</p>`

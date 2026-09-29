@@ -825,3 +825,420 @@ th {
     max-height: 70vh;
   }
 }
+
+/* ---------- Leads tab ---------- */
+.small {
+  font-size: 12px;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.prewrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.tag.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.leads-head-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.lead-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  background: #fbfcfe;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chip span {
+  margin-left: 4px;
+  color: var(--muted);
+}
+
+.chip.active {
+  background: var(--blue-dark);
+  border-color: var(--blue-dark);
+  color: #fff;
+}
+
+.chip.active span {
+  color: #c9d7ec;
+}
+
+.leads-filters {
+  display: grid;
+  grid-template-columns: 1fr 220px 240px;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.leads-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.leads-layout.with-detail {
+  grid-template-columns: minmax(0, 1fr) 380px;
+}
+
+.leads-table td {
+  vertical-align: top;
+}
+
+.leads-table select {
+  width: auto;
+  min-width: 130px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.lead-row {
+  cursor: pointer;
+}
+
+.lead-row:hover td {
+  background: #f7fafc;
+}
+
+.lead-row.selected td {
+  background: #eaf1fb;
+}
+
+.lead-topic {
+  max-width: 260px;
+}
+
+.empty-row {
+  text-align: center;
+  padding: 28px !important;
+}
+
+.status-select.status-new {
+  border-color: #f2b36b;
+  background: #fff6ea;
+}
+
+.status-select.status-contacted {
+  border-color: #8bb4ff;
+  background: #eef4ff;
+}
+
+.status-select.status-meeting_booked {
+  border-color: #6fcf97;
+  background: var(--ok-bg);
+}
+
+.status-select.status-closed {
+  background: #f1f3f5;
+  color: var(--muted);
+}
+
+.lead-detail {
+  position: sticky;
+  top: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+}
+
+.lead-detail-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.lead-detail-head h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.lead-detail-head p {
+  margin: 4px 0 0;
+}
+
+.lead-facts {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 6px 10px;
+  margin: 14px 0;
+  font-size: 13px;
+}
+
+.lead-facts dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.lead-facts dd {
+  margin: 0;
+}
+
+.lead-note-box {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.lead-note-box button {
+  justify-self: end;
+}
+
+.lead-timeline {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  border-left: 2px solid var(--line);
+}
+
+.lead-timeline li {
+  position: relative;
+  margin: 0 0 12px;
+  padding-left: 14px;
+  font-size: 13px;
+}
+
+.lead-timeline li::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+
+.lead-timeline li.system::before {
+  background: #c3cfdd;
+}
+
+.lead-timeline li.system > div:last-child {
+  color: var(--muted);
+}
+
+button.danger-text {
+  color: var(--err);
+}
+
+.leads-settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.leads-settings h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.leads-settings p {
+  margin: 0 0 8px;
+}
+
+.leads-notify-row {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 960px) {
+  .leads-layout.with-detail,
+  .leads-settings,
+  .leads-filters {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Public meeting form ---------- */
+.meet-page {
+  --meet-primary: #15294c;
+  --meet-accent: #254c82;
+  --meet-soft: #f4f7fb;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 16px;
+}
+
+.meet-page.brand-contour {
+  --meet-primary: #182752;
+  --meet-accent: #f2661f;
+  --meet-soft: #f7f4ef;
+  background: #ede8e1;
+}
+
+.meet-card {
+  width: 100%;
+  max-width: 640px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.meet-head {
+  background: var(--meet-primary);
+  color: #fff;
+  padding: 26px 28px 24px;
+  border-bottom: 4px solid var(--meet-accent);
+}
+
+.meet-logos {
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 18px;
+}
+
+.meet-logo-xdc {
+  height: 30px;
+}
+
+.meet-logo-contour {
+  height: 28px;
+}
+
+.meet-eyebrow {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #f6c3a8;
+}
+
+.brand-xdc .meet-eyebrow {
+  color: #9fc0ec;
+}
+
+.meet-head h1 {
+  margin: 6px 0 6px;
+  font-size: 28px;
+}
+
+.meet-sub {
+  margin: 0;
+  color: #c9d3e8;
+  font-size: 14px;
+}
+
+.meet-form,
+.meet-done {
+  padding: 24px 28px 28px;
+}
+
+.meet-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 14px;
+}
+
+.meet-form input[readonly] {
+  background: var(--meet-soft);
+  color: var(--muted);
+}
+
+.meet-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.meet-submit {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 14px 18px;
+  background: var(--meet-accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.meet-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.meet-note {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--meet-soft);
+  font-size: 13px;
+}
+
+.meet-error {
+  margin: 0 0 12px;
+  color: var(--err);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.meet-muted {
+  color: var(--muted);
+  padding: 0 28px;
+}
+
+.meet-form .meet-muted {
+  padding: 0;
+  margin: 10px 0 0;
+  text-align: center;
+}
+
+.meet-done h2 {
+  margin: 0 0 8px;
+  color: var(--meet-primary);
+}
+
+@media (max-width: 560px) {
+  .meet-grid {
+    grid-template-columns: 1fr;
+  }
+}
