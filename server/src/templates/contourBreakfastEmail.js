@@ -6,7 +6,7 @@
  * Text fields support **bold** and [label](https://url).
  */
 const { escapeHtml, resolveAssetBase, btn } = require('./contourSibosEmail');
-const { MEETING_PLACEHOLDER, usesMeetingForm } = require('./meeting');
+const { MEETING_PLACEHOLDER, meetingFormEnabled } = require('./meeting');
 
 const P = 'font-family:Arial,Helvetica,sans-serif;';
 
@@ -97,7 +97,7 @@ function defaultContourBreakfastContent() {
     continuedCtaLabel: 'Register here',
     continuedCtaUrl: 'https://luma.com/tnotpk0e',
     boothLine: 'Or visit us at the **Contour** booth in the Discovery Zone, Booth #DISS43!',
-    meetingForm: true,
+    meetingForm: false,
     meetingTitle: 'Prefer a 1:1 meeting at Sibos?',
     meetingText:
       'Tell us when suits you and what you would like to discuss — the **Contour** team will get back to you to confirm a time.',
@@ -267,7 +267,7 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
       : '';
 
   const meetingCard =
-    usesMeetingForm(c.meetingForm) && c.meetingCtaLabel
+    meetingFormEnabled(c.meetingForm) && c.meetingCtaLabel
       ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;background-color:#ffffff;border:1px solid #E6E0D8;border-left:4px solid #182752;border-radius:8px;">
                 <tr>
                   <td style="padding:18px 18px 6px;">

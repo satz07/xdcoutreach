@@ -348,17 +348,31 @@ export default function App() {
 
   const isContourTemplate = content.templateKind === 'contour-sibos';
   const isBreakfastTemplate = content.templateKind === 'contour-breakfast';
-  const meetingFormOn = !(content.meetingForm === false || content.meetingForm === 'false');
+  const meetingFormOn = content.meetingForm === true || content.meetingForm === 'true';
   const meetingFormToggle = (
-    <label className="inline-check">
-      <input
-        type="checkbox"
-        checked={meetingFormOn}
-        onChange={(e) => updateField('meetingForm', e.target.checked)}
-      />
-      Meeting button opens our meeting form{' '}
-      <span className="hint">(each recipient gets a personal link; responses land in the Leads tab)</span>
-    </label>
+    <>
+      <label className="inline-check">
+        <input
+          type="checkbox"
+          checked={meetingFormOn}
+          onChange={(e) => updateField('meetingForm', e.target.checked)}
+        />
+        Add extra “Request a meeting” form button{' '}
+        <span className="hint">
+          (optional — personal link per recipient, responses land in the Leads tab; the existing
+          schedule-meeting email / Calendly button keeps working as before)
+        </span>
+      </label>
+      {meetingFormOn && !isBreakfastTemplate && (
+        <label>
+          Form button label
+          <input
+            value={content.meetingFormLabel ?? 'Request a meeting'}
+            onChange={(e) => updateField('meetingFormLabel', e.target.value)}
+          />
+        </label>
+      )}
+    </>
   );
 
   const loadBase = useCallback(async () => {
@@ -1568,17 +1582,14 @@ export default function App() {
                     />
                   </label>
                   <label>
-                    Book meeting URL (Calendly){' '}
-                    {meetingFormOn && <span className="hint">(unused while meeting form is on)</span>}
+                    Book meeting URL (Calendly)
                     <input
                       placeholder="https://calendly.com/rahul-contour"
                       value={content.boothCtaUrl || ''}
-                      disabled={meetingFormOn}
                       onChange={(e) => updateField('boothCtaUrl', e.target.value)}
                     />
                   </label>
                 </div>
-                {meetingFormToggle}
                 <label>
                   Booth where
                   <input
@@ -1593,6 +1604,7 @@ export default function App() {
                     onChange={(e) => updateField('boothCtaLabel', e.target.value)}
                   />
                 </label>
+                {meetingFormToggle}
 
                 <p className="hint" style={{ margin: '12px 0 4px', fontWeight: 600 }}>
                   Networking breakfast &amp; panel

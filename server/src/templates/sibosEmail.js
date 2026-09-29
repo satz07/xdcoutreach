@@ -4,7 +4,7 @@
  *
  * XDC theme: Navy #15294C · Blue #254C82 · Accent #416BAA · Light #F4F7FB
  */
-const { MEETING_PLACEHOLDER, usesMeetingForm } = require('./meeting');
+const { MEETING_PLACEHOLDER, DEFAULT_MEETING_FORM_LABEL, meetingFormEnabled } = require('./meeting');
 
 function escapeHtml(str = '') {
   return String(str)
@@ -127,15 +127,15 @@ function buildSibosEmailHtml(overrides = {}) {
     ctaUrl,
     ctaLabel = 'Schedule a Meeting',
     meetingForm,
+    meetingFormLabel = DEFAULT_MEETING_FORM_LABEL,
     footerNote = 'XDC Network & Contour · Sibos 2026 · Booth #DISS 43',
     xdcLogoSrc = 'cid:xdc-logo',
     contourLogoSrc = 'cid:contour-logo',
     topics,
   } = overrides;
 
-  const meetingHref = usesMeetingForm(meetingForm)
-    ? MEETING_PLACEHOLDER
-    : ctaUrl ||
+  const meetingHref =
+    ctaUrl ||
     buildMeetingLink({
       email: ctaEmail,
       subject: ctaMailtoSubject,
@@ -304,6 +304,20 @@ function buildSibosEmailHtml(overrides = {}) {
                   </td>
                 </tr>
               </table>
+              ${
+                meetingFormEnabled(meetingForm) && meetingFormLabel
+                  ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="email-btn" style="width:100%;max-width:320px;margin-top:10px;">
+                <tr>
+                  <td align="center" bgcolor="#ffffff" style="background-color:#ffffff;border:2px solid #254C82;border-radius:6px;">
+                    <a href="${MEETING_PLACEHOLDER}"
+                      style="display:inline-block;padding:12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:#254C82;text-decoration:none;border-radius:6px;width:100%;box-sizing:border-box;text-align:center;">
+                      ${escapeHtml(meetingFormLabel)}
+                    </a>
+                  </td>
+                </tr>
+              </table>`
+                  : ''
+              }
             </td>
           </tr>
 
