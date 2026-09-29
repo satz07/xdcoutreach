@@ -69,7 +69,7 @@ export default function MeetingPage({ token, event }) {
   }
 
   return (
-    <div className={`meet-page brand-${brand}`}>
+    <div className={`meet-page meet-theme-${brand}`}>
       <div className="meet-card">
         <div className="meet-head">
           <div className="meet-logos">

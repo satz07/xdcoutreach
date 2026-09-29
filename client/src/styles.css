@@ -1100,7 +1100,7 @@ button.danger-text {
   padding: 40px 16px;
 }
 
-.meet-page.brand-contour {
+.meet-page.meet-theme-contour {
   --meet-primary: #182752;
   --meet-accent: #f2661f;
   --meet-soft: #f7f4ef;
@@ -1150,7 +1150,7 @@ button.danger-text {
   color: #f6c3a8;
 }
 
-.brand-xdc .meet-eyebrow {
+.meet-theme-xdc .meet-eyebrow {
   color: #9fc0ec;
 }
 
