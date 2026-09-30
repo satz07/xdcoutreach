@@ -127,7 +127,10 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
   const img = (name) => `${assetBase}/${name}`;
 
   const logo = c.logoSrc || c.contourLogoSrc || 'cid:contour-logo';
-  const hero = c.heroImgSrc || img('opening-bell.jpg');
+  const hero = c.heroImgSrc || img(c.heroFile || 'opening-bell.jpg');
+  const heroAlt =
+    c.heroAlt ||
+    'Opening Bell: Institutional Breakfast · Unlocking Velocity in Trade & Payments · Sibos Miami 2026';
   const showHero = !(c.showHero === false || c.showHero === 'false');
   // The Luma cover already carries title/date, so the strip only returns when asked or when the cover is off.
   const showHeaderStrip = !showHero || c.showHeaderStrip === true || c.showHeaderStrip === 'true';
@@ -204,11 +207,25 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
           </tr>`
     : '';
 
-  const hasEventBox = c.eventWhen || c.eventWhere || c.eventNote || c.registerCtaLabel;
+  /** "Label: value" per line → bold-label rows inside the event box. */
+  const eventDetails = linesOf(c.eventDetailsText)
+    .map((line) => {
+      const idx = line.indexOf(':');
+      return idx > 0 ? detailRow(escapeHtml(line.slice(0, idx).trim()), line.slice(idx + 1).trim()) : para(line, '0 0 6px');
+    })
+    .join('');
+  const hasEventBox =
+    c.eventWhen || c.eventWhere || c.eventNote || c.registerCtaLabel || eventDetails || c.eventBoxTitle;
   const eventBox = hasEventBox
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;background-color:#F7F4EF;border:1px solid #E6E0D8;border-left:4px solid #F2661F;border-radius:8px;">
                 <tr>
                   <td style="padding:16px 18px 6px;">
+                    ${
+                      c.eventBoxTitle
+                        ? `<p style="margin:0 0 10px;${P}font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:#F2661F;font-weight:700;">${rich(c.eventBoxTitle)}</p>`
+                        : ''
+                    }
+                    ${eventDetails}
                     ${detailRow('When', c.eventWhen)}
                     ${detailRow('Where', c.eventWhere)}
                     ${
@@ -353,7 +370,7 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
           <tr>
             <td bgcolor="#F4EDE4" style="padding:0;line-height:0;font-size:0;background-color:#F4EDE4;">
               <a href="${escapeHtml(registerUrl)}" style="display:block;">
-                <img src="${escapeHtml(hero)}" alt="Opening Bell: Institutional Breakfast · Unlocking Velocity in Trade &amp; Payments · Sibos Miami 2026" width="600"
+                <img src="${escapeHtml(hero)}" alt="${escapeHtml(heroAlt)}" width="600"
                   style="width:100%;max-width:600px;height:auto;display:block;border:0;${P}font-size:16px;line-height:1.4;font-weight:700;color:#182752;text-align:center;"/>
               </a>
             </td>

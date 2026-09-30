@@ -1313,6 +1313,21 @@ export default function App() {
                 </label>
 
                 <h4 className="field-group-title">When / Where box (after the seats line)</h4>
+                <label>
+                  Box title <span className="hint">(optional, e.g. Session Details)</span>
+                  <input
+                    value={content.eventBoxTitle || ''}
+                    onChange={(e) => updateField('eventBoxTitle', e.target.value)}
+                  />
+                </label>
+                <label>
+                  Detail rows <span className="hint">(optional — one “Label: value” per line)</span>
+                  <textarea
+                    rows={4}
+                    value={content.eventDetailsText || ''}
+                    onChange={(e) => updateField('eventDetailsText', e.target.value)}
+                  />
+                </label>
                 <div className="row-2">
                   <label>
                     When
