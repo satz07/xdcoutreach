@@ -238,6 +238,39 @@ router.post('/events', async (req, res) => {
   }
 });
 
+/** PATCH /events/:id { name?, location?, dates?, mail_provider_id? } — superadmin */
+router.patch('/events/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    const { name, location, dates, mail_provider_id } = req.body || {};
+    if (mail_provider_id != null) {
+      const provider = await getProviderById(Number(mail_provider_id));
+      if (!provider || !provider.active) {
+        return res.status(400).json({ error: 'Invalid or inactive mail provider' });
+      }
+    }
+    const { rows } = await pool.query(
+      `UPDATE events SET
+         name = COALESCE($2, name),
+         location = COALESCE($3, location),
+         dates = COALESCE($4, dates),
+         mail_provider_id = COALESCE($5, mail_provider_id)
+       WHERE id = $1
+       RETURNING *`,
+      [req.params.id, name || null, location ?? null, dates ?? null, mail_provider_id ? Number(mail_provider_id) : null]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Event not found' });
+    const provider = rows[0].mail_provider_id ? await getProviderById(rows[0].mail_provider_id) : null;
+    res.json({
+      ...rows[0],
+      mail_provider_name: provider?.name || null,
+      mail_provider_type: provider?.type || null,
+      mail_from_email: provider?.from_email || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /** List participants for an event */
 router.get('/events/:id/participants', async (req, res) => {
   try {

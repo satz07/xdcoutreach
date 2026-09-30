@@ -72,6 +72,7 @@ export const api = {
   resendInvite: (id) => request(`/auth/users/${id}/resend-invite`, { method: 'POST' }),
   events: () => request('/events'),
   createEvent: (body) => request('/events', { method: 'POST', body: JSON.stringify(body) }),
+  updateEvent: (id, body) => request(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   mailProviders: () => request('/mail-providers'),
   createMailProvider: (body) =>
     request('/mail-providers', { method: 'POST', body: JSON.stringify(body) }),

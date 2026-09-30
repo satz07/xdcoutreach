@@ -445,6 +445,13 @@ button.danger:hover:not(:disabled) {
   color: var(--muted);
 }
 
+.event-provider-select {
+  width: auto;
+  max-width: 100%;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
 td.user-actions {
   white-space: nowrap;
 }

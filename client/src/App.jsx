@@ -575,6 +575,20 @@ export default function App() {
     }
   }
 
+  async function changeEventProvider(ev, providerId) {
+    if (!providerId || Number(providerId) === ev.mail_provider_id) return;
+    const p = mailProviders.find((x) => x.id === Number(providerId));
+    if (!window.confirm(`Send "${ev.name}" via ${p?.name || 'this provider'} (${p?.from_email || ''})?`)) return;
+    setError('');
+    try {
+      const updated = await api.updateEvent(ev.id, { mail_provider_id: Number(providerId) });
+      setEvents((list) => list.map((e) => (e.id === ev.id ? { ...e, ...updated } : e)));
+      setNotice(`${ev.name} now sends via ${updated.mail_provider_name} · ${updated.mail_from_email}`);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function handleResendInvite(u) {
     setError('');
     setNotice('');
@@ -1215,6 +1229,15 @@ export default function App() {
                     onChange={(e) => updateField('showHero', e.target.checked)}
                   />
                   Show Luma “Opening Bell” image at the top
+                </label>
+                <label className="inline-check">
+                  <input
+                    type="checkbox"
+                    checked={!(content.showBrandBar === false || content.showBrandBar === 'false')}
+                    onChange={(e) => updateField('showBrandBar', e.target.checked)}
+                  />
+                  Show Contour logo bar above the image{' '}
+                  <span className="hint">(turn off when the image already carries the logos)</span>
                 </label>
                 <label className="inline-check">
                   <input
@@ -2286,9 +2309,27 @@ export default function App() {
                   </span>
                   <span>
                     Mail:{' '}
-                    {ev.mail_provider_name || 'not set'}
-                    {ev.mail_provider_type ? ` (${ev.mail_provider_type})` : ''}
-                    {ev.mail_from_email ? ` · ${ev.mail_from_email}` : ''}
+                    {isSuperAdmin && mailProviders.length > 1 ? (
+                      <select
+                        className="event-provider-select"
+                        value={ev.mail_provider_id || ''}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => changeEventProvider(ev, e.target.value)}
+                      >
+                        {!ev.mail_provider_id && <option value="">not set</option>}
+                        {mailProviders.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} · {p.from_email}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <>
+                        {ev.mail_provider_name || 'not set'}
+                        {ev.mail_provider_type ? ` (${ev.mail_provider_type})` : ''}
+                        {ev.mail_from_email ? ` · ${ev.mail_from_email}` : ''}
+                      </>
+                    )}
                   </span>
                   <code>{ev.slug}</code>
                   {ev.id === eventId ? <em> · selected</em> : null}

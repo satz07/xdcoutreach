@@ -629,7 +629,8 @@ async function sendOneVerifiedTransactional({
   const name = fromName || 'XDC Network & Contour';
   const from = `"${name}" <${fromAddr}>`;
   const htmlBody = prepareOutboundHtml(html, { embedLogoCid: true });
-  const logoFiles = resolveLogoAttachments();
+  // Unreferenced inline images show up as stray attachments in some clients.
+  const logoFiles = resolveLogoAttachments().filter((f) => htmlBody.includes(`cid:${f.cid}`));
 
   const payload = {
     From: from,
@@ -638,7 +639,7 @@ async function sendOneVerifiedTransactional({
     HtmlBody: htmlBody,
     TextBody: text || undefined,
     MessageStream: process.env.POSTMARK_MESSAGE_STREAM || 'outbound',
-    Attachments: postmarkInlineAttachments(logoFiles),
+    ...(logoFiles.length ? { Attachments: postmarkInlineAttachments(logoFiles) } : {}),
   };
 
   const res = await fetch('https://api.postmarkapp.com/email', {

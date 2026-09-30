@@ -132,6 +132,8 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
     c.heroAlt ||
     'Opening Bell: Institutional Breakfast · Unlocking Velocity in Trade & Payments · Sibos Miami 2026';
   const showHero = !(c.showHero === false || c.showHero === 'false');
+  // Hiding the logo bar only makes sense when the hero (which carries the logos) is shown.
+  const showBrandBar = !showHero || !(c.showBrandBar === false || c.showBrandBar === 'false');
   // The Luma cover already carries title/date, so the strip only returns when asked or when the cover is off.
   const showHeaderStrip = !showHero || c.showHeaderStrip === true || c.showHeaderStrip === 'true';
   const registerUrl = c.registerUrl || 'https://luma.com/Unlockingvelocity';
@@ -214,9 +216,11 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
       return idx > 0 ? detailRow(escapeHtml(line.slice(0, idx).trim()), line.slice(idx + 1).trim()) : para(line, '0 0 6px');
     })
     .join('');
-  const hasEventBox =
-    c.eventWhen || c.eventWhere || c.eventNote || c.registerCtaLabel || eventDetails || c.eventBoxTitle;
-  const eventBox = hasEventBox
+  const hasEventBoxInfo = c.eventWhen || c.eventWhere || c.eventNote || eventDetails || c.eventBoxTitle;
+  const hasEventBox = hasEventBoxInfo || c.registerCtaLabel;
+  const eventBox = !hasEventBoxInfo && c.registerCtaLabel
+    ? `<div style="margin:4px 0 22px;">${btn(registerUrl, c.registerCtaLabel, { bg: '#F2661F', full: true })}</div>`
+    : hasEventBox
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;background-color:#F7F4EF;border:1px solid #E6E0D8;border-left:4px solid #F2661F;border-radius:8px;">
                 <tr>
                   <td style="padding:16px 18px 6px;">
@@ -345,7 +349,9 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
       <td align="center" style="padding:20px 10px;">
         <table role="presentation" class="email-shell" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #DDD5CA;">
 
-          <!-- Brand bar -->
+          ${
+            showBrandBar
+              ? `<!-- Brand bar -->
           <tr>
             <td bgcolor="#F7F4EF" style="background-color:#F7F4EF;padding:16px 24px;border-bottom:1px solid #E6E0D8;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -363,7 +369,9 @@ function buildContourBreakfastEmailHtml(overrides = {}) {
               </table>
             </td>
           </tr>
-
+`
+              : ''
+          }
           ${
             showHero
               ? `<!-- Hero: Luma event cover -->
