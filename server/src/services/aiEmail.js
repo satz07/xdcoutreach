@@ -1,5 +1,5 @@
 const { pool } = require('../db/pool');
-const { claude, addUsage, emptyUsage } = require('./llm');
+const { claude, addUsage, emptyUsage, aiConfig } = require('./llm');
 const { htmlToText } = require('./mailer');
 const { getProviderForEvent } = require('./mailProviders');
 const { buildPersonalEmailHtml } = require('../templates/personalEmail');
@@ -112,6 +112,7 @@ async function writePersonalizedEmail({ profile, recipient, brief, instructions 
     tools: [EMAIL_TOOL],
     toolChoice: { type: 'tool', name: 'write_email' },
     maxTokens: 2000,
+    model: aiConfig().writerModel,
   });
   addUsage(usage, resp.usage);
   const out = resp.content?.find((b) => b.type === 'tool_use')?.input;

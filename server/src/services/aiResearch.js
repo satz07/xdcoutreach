@@ -1,12 +1,12 @@
 const dns = require('dns').promises;
 const net = require('net');
 const { pool } = require('../db/pool');
-const { claude, addUsage, emptyUsage } = require('./llm');
+const { claude, addUsage, emptyUsage, aiConfig, withCacheBreakpoint } = require('./llm');
 const { htmlToText } = require('./mailer');
 
 const FREE_MAIL = /^(gmail|googlemail|yahoo|ymail|outlook|hotmail|live|msn|icloud|me|aol|proton|protonmail|gmx|mail|yandex|zoho|qq|163)\./i;
 const MAX_PAGE_BYTES = 1_500_000;
-const MAX_PAGE_CHARS = 9000;
+const MAX_PAGE_CHARS = Number(process.env.AI_MAX_PAGE_CHARS || 5000);
 const MAX_TURNS = 12;
 
 function isFreeMailDomain(domain) {
@@ -294,7 +294,13 @@ async function researchRecipient({ name, email, company, domain, event, senderOr
   let nudged = false;
 
   for (let turn = 0; turn < MAX_TURNS && !profile; turn += 1) {
-    const resp = await claude({ system, messages, tools: TOOLS, maxTokens: 4096 });
+    const resp = await claude({
+      system,
+      messages: withCacheBreakpoint(messages),
+      tools: TOOLS,
+      maxTokens: 4096,
+      model: aiConfig().researchModel,
+    });
     addUsage(usage, resp.usage);
     messages.push({ role: 'assistant', content: resp.content });
 

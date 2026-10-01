@@ -1,25 +1,13 @@
 const express = require('express');
 const { pool } = require('../db/pool');
 const { requireAuth, requireSuperAdmin } = require('../middleware/auth');
-const { aiConfig, aiConfigured, addUsage, emptyUsage } = require('../services/llm');
+const { aiConfig, aiConfigured, addUsage, emptyUsage, estimateCost } = require('../services/llm');
 const { researchRecipient } = require('../services/aiResearch');
 const { getEventBrief, writePersonalizedEmail } = require('../services/aiEmail');
 const { sendOneForEvent } = require('../services/mailer');
 
 const router = express.Router();
 router.use(requireAuth);
-
-const PRICE_IN_PER_M = Number(process.env.AI_PRICE_INPUT_PER_M || 3);
-const PRICE_OUT_PER_M = Number(process.env.AI_PRICE_OUTPUT_PER_M || 15);
-const PRICE_PER_SEARCH = Number(process.env.AI_PRICE_PER_SEARCH || 0.01);
-
-function estimateCost(u) {
-  const usd =
-    (u.input_tokens / 1e6) * PRICE_IN_PER_M +
-    (u.output_tokens / 1e6) * PRICE_OUT_PER_M +
-    u.web_searches * PRICE_PER_SEARCH;
-  return Math.round(usd * 10000) / 10000;
-}
 
 let tableReady = null;
 function ensureTable() {
@@ -53,7 +41,12 @@ function ensureTable() {
 }
 
 router.get('/status', (_req, res) => {
-  res.json({ configured: aiConfigured(), model: aiConfig().model, provider: 'anthropic' });
+  const cfg = aiConfig();
+  res.json({
+    configured: aiConfigured(),
+    model: `${cfg.researchModel} (research) → ${cfg.writerModel} (writing)`,
+    provider: 'anthropic',
+  });
 });
 
 /** POST /api/ai/personalize { event_id, email, name?, company?, domain?, instructions? } */
@@ -88,12 +81,16 @@ router.post('/personalize', requireSuperAdmin, async (req, res) => {
       instructions: instructions?.trim(),
     });
 
-    const usage = addUsage(addUsage(emptyUsage(), {
-      input_tokens: research.usage.input_tokens,
-      output_tokens: research.usage.output_tokens,
-      server_tool_use: { web_search_requests: research.usage.web_searches },
-    }), written.usage);
-    const cost = estimateCost(usage);
+    const cfg = aiConfig();
+    const researchCost = estimateCost(research.usage, cfg.researchModel);
+    const writerCost = estimateCost(written.usage, cfg.writerModel);
+    const usage = {
+      ...addUsage(addUsage(emptyUsage(), research.usage), written.usage),
+      research: { ...research.usage, model: cfg.researchModel, cost_usd: researchCost },
+      writer: { ...written.usage, model: cfg.writerModel, cost_usd: writerCost },
+    };
+    const cost = Math.round((researchCost + writerCost) * 10000) / 10000;
+    const modelLabel = `${cfg.researchModel} → ${cfg.writerModel}`;
     const duration = Date.now() - started;
 
     const { rows } = await pool.query(
@@ -102,7 +99,7 @@ router.post('/personalize', requireSuperAdmin, async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id, created_at`,
       [
         Number(event_id), email, recipient.name || null, recipient.company || null, domain, instructions || null,
-        aiConfig().model, research.profile, JSON.stringify(research.steps), written.email, usage, cost, duration,
+        modelLabel, research.profile, JSON.stringify(research.steps), written.email, usage, cost, duration,
         req.user?.id || null,
       ]
     );
@@ -118,7 +115,7 @@ router.post('/personalize', requireSuperAdmin, async (req, res) => {
       usage,
       cost_usd: cost,
       duration_ms: duration,
-      model: aiConfig().model,
+      model: modelLabel,
     });
   } catch (err) {
     console.error('[ai] personalize failed:', err);
