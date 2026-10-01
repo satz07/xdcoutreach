@@ -3,6 +3,7 @@ const { claude, addUsage, emptyUsage } = require('./llm');
 const { htmlToText } = require('./mailer');
 const { getProviderForEvent } = require('./mailProviders');
 const { buildPersonalEmailHtml } = require('../templates/personalEmail');
+const { isInternalDomain } = require('./aiResearch');
 
 /** Event context the writer is allowed to use: details, the live template's text, and its links. */
 async function getEventBrief(eventId) {
@@ -75,17 +76,22 @@ const EMAIL_TOOL = {
 
 async function writePersonalizedEmail({ profile, recipient, brief, instructions }) {
   const usage = emptyUsage();
+  const internal = isInternalDomain(recipient.domain || recipient.email.split('@')[1]);
   const system = [
     `You write short, personal B2B invitation emails on behalf of ${brief.fromName || 'the events team'}.`,
-    'Style: warm, plain business English, like a person writing one email to one contact. 90-140 words in the body.',
-    'Paragraph 1: open with one specific, factual observation about their company taken from the research hooks, connected to why we are reaching out. No flattery words (impressive, amazing, admire).',
+    'Style: warm, plain business English, like a person writing one email to one contact. 80-120 words in the body, 3 short paragraphs, short sentences.',
+    'Paragraph 1: open with one specific, factual observation about the PERSON (their role, a talk, podcast, article or post) if the profile has one; otherwise about their company. Connect it to why we are reaching out. No flattery words (impressive, amazing, admire, caught our attention).',
+    'Only use facts listed in personalization_hooks or person. Never use anything mentioned in gaps, and never use figures or deals that came from a single aggregator listing.',
+    internal
+      ? 'The recipient works at our own organisation or a sister company. Write as a colleague-to-colleague note (e.g. a heads-up on the booth plan and an ask to drop by or bring contacts), not a sales invitation. Do not explain our own company to them.'
+      : '',
     'Paragraph 2: why this particular event/session is relevant to them, using only details from the event brief.',
     'Include the key practical detail (date, place) once. Use exactly one call to action whose URL is one of the provided event links.',
     'If research confidence is below 0.5 or there are no hooks, stay general about their industry instead of inventing specifics.',
     'If our records show prior invites or a meeting request, acknowledge it naturally in one clause.',
     'Never mention research, AI, or "I saw on your website". No emoji, no exclamation marks, no hype words, no "I hope this email finds you well".',
     'Use the sign-off (team / company) from the event brief.',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 
   const content = [
     `RECIPIENT: ${recipient.name || ''} <${recipient.email}>, company: ${recipient.company || profile.company_name || ''}`,
