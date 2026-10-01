@@ -8,6 +8,7 @@ const {
   CONTOUR_SIBOS_SUBJECT,
 } = require('../templates/contourSibosEmail');
 const { buildContourBreakfastEmailHtml } = require('../templates/contourBreakfastEmail');
+const { buildSimpleInviteEmailHtml } = require('../templates/simpleInviteEmail');
 const { requireAuth, requireSuperAdmin, getRemainingQuota } = require('../middleware/auth');
 const {
   listProviders,
@@ -45,6 +46,13 @@ function buildEventEmailHtml(content = {}) {
   }
   if (withAssets.templateKind === 'contour-breakfast') {
     return buildContourBreakfastEmailHtml(withAssets);
+  }
+  if (withAssets.templateKind === 'simple-invite') {
+    return buildSimpleInviteEmailHtml({
+      ...withAssets,
+      assetBase:
+        content.assetBase || (base && content.assetFolder ? `${base}/events/${content.assetFolder}` : ''),
+    });
   }
   return buildSibosEmailHtml(withAssets);
 }
@@ -154,7 +162,7 @@ router.get('/events', async (_req, res) => {
 /** Create event + default invite template for that event */
 router.post('/events', async (req, res) => {
   try {
-    const { name, slug, location, dates, mail_provider_id } = req.body;
+    const { name, slug, location, dates, mail_provider_id, from_name } = req.body;
     if (!name || !slug) {
       return res.status(400).json({ error: 'name and slug are required' });
     }
@@ -169,10 +177,10 @@ router.post('/events', async (req, res) => {
     }
 
     const { rows } = await pool.query(
-      `INSERT INTO events (name, slug, location, dates, mail_provider_id)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO events (name, slug, location, dates, mail_provider_id, from_name)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [name, slug, location || null, dates || null, provider.id]
+      [name, slug, location || null, dates || null, provider.id, from_name?.trim() || null]
     );
     const event = rows[0];
     event.mail_provider_name = provider.name;
@@ -241,7 +249,7 @@ router.post('/events', async (req, res) => {
 /** PATCH /events/:id { name?, location?, dates?, mail_provider_id? } — superadmin */
 router.patch('/events/:id', requireSuperAdmin, async (req, res) => {
   try {
-    const { name, location, dates, mail_provider_id } = req.body || {};
+    const { name, location, dates, mail_provider_id, from_name } = req.body || {};
     if (mail_provider_id != null) {
       const provider = await getProviderById(Number(mail_provider_id));
       if (!provider || !provider.active) {
@@ -253,10 +261,19 @@ router.patch('/events/:id', requireSuperAdmin, async (req, res) => {
          name = COALESCE($2, name),
          location = COALESCE($3, location),
          dates = COALESCE($4, dates),
-         mail_provider_id = COALESCE($5, mail_provider_id)
+         mail_provider_id = COALESCE($5, mail_provider_id),
+         from_name = CASE WHEN $6::boolean THEN NULLIF(TRIM($7::text), '') ELSE from_name END
        WHERE id = $1
        RETURNING *`,
-      [req.params.id, name || null, location ?? null, dates ?? null, mail_provider_id ? Number(mail_provider_id) : null]
+      [
+        req.params.id,
+        name || null,
+        location ?? null,
+        dates ?? null,
+        mail_provider_id ? Number(mail_provider_id) : null,
+        from_name !== undefined,
+        from_name ?? null,
+      ]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Event not found' });
     const provider = rows[0].mail_provider_id ? await getProviderById(rows[0].mail_provider_id) : null;

@@ -27,7 +27,8 @@ function assetBaseUrl() {
 function prepareOutboundHtml(html, { embedLogoCid = true } = {}) {
   const base = assetBaseUrl();
   const { personalizeHtml } = require('./leads');
-  let out = personalizeHtml(String(html || ''));
+  const { applyMergeFields } = require('./mergeFields');
+  let out = applyMergeFields(personalizeHtml(String(html || '')), {}, { html: true });
 
   if (base) {
     out = out
@@ -838,14 +839,22 @@ async function sendOneViaSmtpProvider(provider, { to, subject, html, text, fromN
 async function sendOneForEvent(eventId, { to, subject, html, text, fromName }) {
   const { getProviderForEvent, resolvePostmarkToken } = require('./mailProviders');
   const { personalizeHtml } = require('./leads');
+  const { hasMergeFields, recipientFields, applyMergeFields } = require('./mergeFields');
   html = personalizeHtml(html, { eventId, email: to });
   if (text) text = personalizeHtml(text, { eventId, email: to });
+  if (hasMergeFields(html) || hasMergeFields(subject) || hasMergeFields(text)) {
+    const fields = await recipientFields(eventId, to);
+    html = applyMergeFields(html, fields, { html: true });
+    subject = applyMergeFields(subject, fields);
+    if (text) text = applyMergeFields(text, fields);
+  }
   const provider = await getProviderForEvent(eventId);
   if (!provider || !provider.id) {
     throw new Error(
       'No mail provider linked to this event. Choose Postmark or an SMTP profile when creating the event.'
     );
   }
+  fromName = fromName || provider.event_from_name || null;
   if (provider.type === 'postmark') {
     return sendOneVerifiedTransactional({
       to,

@@ -55,7 +55,7 @@ async function getProviderById(id) {
 async function getProviderForEvent(eventId) {
   if (!eventId) return null;
   const { rows } = await pool.query(
-    `SELECT mp.*
+    `SELECT mp.*, e.from_name AS event_from_name
      FROM events e
      LEFT JOIN mail_providers mp ON mp.id = e.mail_provider_id
      WHERE e.id = $1`,
@@ -90,6 +90,7 @@ async function ensureMailProvidersSeeded(client = pool) {
     ALTER TABLE events
       ADD COLUMN IF NOT EXISTS mail_provider_id INTEGER REFERENCES mail_providers(id) ON DELETE SET NULL
   `);
+  await client.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS from_name TEXT`);
 
   // Postmark — Sibos / transactional Activity-verified
   await client.query(

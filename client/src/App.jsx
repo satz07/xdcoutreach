@@ -13,6 +13,7 @@ import LoginScreen from './LoginScreen';
 import RecipientsInput from './RecipientsInput';
 import LeadsPanel from './LeadsPanel';
 import AiPanel from './AiPanel';
+import SimpleInviteFields from './SimpleInviteFields';
 
 const DEFAULT_SUBJECT =
   'Meet XDC Network & Contour at Sibos 2026: Agentic Payments, Trade Finance & Real-Time Settlement';
@@ -160,6 +161,9 @@ function hydrateFromTemplate(tpl, event) {
     cj?.templateKind === 'contour-sibos' ||
     /contour/i.test(event?.slug || '') ||
     /contour/i.test(event?.name || '');
+  if (cj?.templateKind === 'simple-invite') {
+    return { subject: tpl?.subject || '', content: { ...cj } };
+  }
   const isBreakfast = cj?.templateKind === 'contour-breakfast';
   const base = isBreakfast
     ? BREAKFAST_DEFAULT_CONTENT
@@ -309,6 +313,9 @@ export default function App() {
             assetBase: eventAssetUrl('contour-sibos', '').replace(/\/$/, ''),
           }
         : {}),
+      ...(content.templateKind === 'simple-invite' && content.assetFolder
+        ? { assetBase: eventAssetUrl(content.assetFolder, '').replace(/\/$/, '') }
+        : {}),
     }),
     [content]
   );
@@ -349,6 +356,7 @@ export default function App() {
 
   const isContourTemplate = content.templateKind === 'contour-sibos';
   const isBreakfastTemplate = content.templateKind === 'contour-breakfast';
+  const isSimpleTemplate = content.templateKind === 'simple-invite';
   const meetingFormOn = content.meetingForm === true || content.meetingForm === 'true';
   const meetingFormToggle = (
     <>
@@ -421,7 +429,14 @@ export default function App() {
     try {
       const { html } = await api.preview(contentPayload);
       const sampleMeetUrl = `${window.location.origin}/?meet=${eventId ? `&event=${eventId}` : ''}`;
-      setPreviewHtml(String(html || '').split('{{MEETING_URL}}').join(sampleMeetUrl));
+      setPreviewHtml(
+        String(html || '')
+          .split('{{MEETING_URL}}')
+          .join(sampleMeetUrl)
+          .replace(/\{\{\s*first_name\s*\}\}/gi, 'Satheesh')
+          .replace(/\{\{\s*name\s*\}\}/gi, 'Satheesh Kumar')
+          .replace(/\{\{\s*company\s*\}\}/gi, 'XDC Network')
+      );
     } catch (err) {
       setError(err.message);
     }
@@ -1218,6 +1233,10 @@ export default function App() {
               <input value={subject} onChange={(e) => setSubject(e.target.value)} />
             </label>
 
+            {isSimpleTemplate ? (
+              <SimpleInviteFields content={content} updateField={updateField} />
+            ) : (
+            <>
             <label>
               Headline
               <input
@@ -1908,6 +1927,8 @@ export default function App() {
                   />
                 </label>
               </>
+            )}
+            </>
             )}
 
             <label>
