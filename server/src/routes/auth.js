@@ -22,7 +22,7 @@ const router = express.Router();
 const APP_NAME = 'XDC Outreach';
 
 function parseLimit(value) {
-  if (value === undefined || value === null || value === '') return null;
+  if (value === undefined || value === null || value === '') return { value: null };
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
     return { error: 'email_send_limit must be a non-negative integer (or empty for unlimited)' };
