@@ -973,5 +973,6 @@ module.exports = {
   logoAttachments,
   prepareOutboundHtml,
   htmlWithPublicLogos,
+  htmlToText,
   diagnoseSmtp,
 };

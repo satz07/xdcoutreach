@@ -12,6 +12,7 @@ import {
 import LoginScreen from './LoginScreen';
 import RecipientsInput from './RecipientsInput';
 import LeadsPanel from './LeadsPanel';
+import AiPanel from './AiPanel';
 
 const DEFAULT_SUBJECT =
   'Meet XDC Network & Contour at Sibos 2026: Agentic Payments, Trade Finance & Real-Time Settlement';
@@ -230,7 +231,7 @@ export default function App() {
 
   const [tab, setTab] = useState(() => {
     const t = new URLSearchParams(window.location.search).get('tab');
-    return ['compose', 'history', 'events', 'leads', 'admins'].includes(t) ? t : 'compose';
+    return ['compose', 'history', 'events', 'leads', 'ai', 'admins'].includes(t) ? t : 'compose';
   });
   const [health, setHealth] = useState(null);
   const [events, setEvents] = useState([]);
@@ -994,6 +995,11 @@ export default function App() {
             <button className={tab === 'leads' ? 'active' : ''} onClick={() => setTab('leads')}>
               Leads
             </button>
+            {isSuperAdmin && (
+              <button className={tab === 'ai' ? 'active' : ''} onClick={() => setTab('ai')}>
+                AI Personalize
+              </button>
+            )}
             {isSuperAdmin && (
               <button className={tab === 'admins' ? 'active' : ''} onClick={() => setTab('admins')}>
                 Invite Admins
@@ -2275,6 +2281,10 @@ export default function App() {
             </button>
           </div>
         </main>
+      )}
+
+      {tab === 'ai' && isSuperAdmin && (
+        <AiPanel events={events} currentEventId={eventId} user={user} />
       )}
 
       {tab === 'leads' && (

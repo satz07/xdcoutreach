@@ -34,6 +34,7 @@ app.use('/api/auth', auth);
 // Must be mounted before `api`, whose router-level requireAuth would reject public form calls.
 app.use('/api/public', require('./routes/publicLeads'));
 app.use('/api/leads', require('./routes/leads'));
+app.use('/api/ai', require('./routes/ai'));
 app.use('/api', api);
 
 app.get('/', (_req, res) => {

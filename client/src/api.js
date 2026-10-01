@@ -73,6 +73,11 @@ export const api = {
   events: () => request('/events'),
   createEvent: (body) => request('/events', { method: 'POST', body: JSON.stringify(body) }),
   updateEvent: (id, body) => request(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  aiStatus: () => request('/ai/status'),
+  aiPersonalize: (body) => request('/ai/personalize', { method: 'POST', body: JSON.stringify(body) }),
+  aiRuns: () => request('/ai/runs'),
+  aiRun: (id) => request(`/ai/runs/${id}`),
+  aiSendRun: (id, body) => request(`/ai/runs/${id}/send`, { method: 'POST', body: JSON.stringify(body) }),
   mailProviders: () => request('/mail-providers'),
   createMailProvider: (body) =>
     request('/mail-providers', { method: 'POST', body: JSON.stringify(body) }),
