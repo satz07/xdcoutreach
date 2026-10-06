@@ -3,7 +3,7 @@ const { claude, addUsage, emptyUsage, aiConfig } = require('./llm');
 const { htmlToText } = require('./mailer');
 const { getProviderForEvent } = require('./mailProviders');
 const { buildPersonalEmailHtml } = require('../templates/personalEmail');
-const { isInternalDomain } = require('./aiResearch');
+const { isInternalDomain, asArray, sourcedList } = require('./aiResearch');
 
 /** Event context the writer is allowed to use: details, the live template's text, and its links. */
 async function getEventBrief(eventId) {
@@ -120,7 +120,10 @@ async function writePersonalizedEmail({ profile, recipient, brief, instructions 
 
   const unescape = (s) => (typeof s === 'string' ? s.replace(/\\n/g, '\n').trim() : s);
   for (const k of ['greeting', 'closing', 'signature', 'subject', 'preheader']) out[k] = unescape(out[k]);
-  out.paragraphs = (out.paragraphs || []).map(unescape).filter(Boolean);
+  out.paragraphs = asArray(out.paragraphs)
+    .map((p) => (typeof p === 'string' ? unescape(p) : ''))
+    .filter(Boolean);
+  out.claims = sourcedList(out.claims, 'claim');
 
   const allowed = new Set(brief.links.map((l) => l.url));
   if (out.cta_url && !allowed.has(out.cta_url)) {

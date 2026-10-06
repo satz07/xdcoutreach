@@ -354,7 +354,54 @@ async function researchRecipient({ name, email, company, domain, event, senderOr
   }
 
   if (!profile) throw new Error('Research agent finished without saving a profile');
-  return { profile, steps, usage };
+  return { profile: normalizeProfile(profile), steps, usage };
 }
 
-module.exports = { researchRecipient, fetchPage, checkOurHistory, isFreeMailDomain, isInternalDomain };
+/** Models sometimes send array fields as a JSON string or a single object; coerce to an array. */
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value == null || value === '') return [];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === 'object') return [parsed];
+    } catch {
+      /* plain text */
+    }
+    return [value];
+  }
+  return typeof value === 'object' ? [value] : [];
+}
+
+function sourcedList(value, key) {
+  return asArray(value)
+    .map((item) => (typeof item === 'string' ? { [key]: item, source_url: '' } : item))
+    .filter((item) => item && typeof item === 'object' && item[key]);
+}
+
+function normalizeProfile(raw) {
+  const profile = { ...(raw || {}) };
+  profile.personalization_hooks = sourcedList(profile.personalization_hooks, 'hook');
+  profile.recent_developments = sourcedList(profile.recent_developments, 'fact');
+  if (typeof profile.person === 'string') {
+    try {
+      profile.person = JSON.parse(profile.person);
+    } catch {
+      profile.person = { notes: profile.person };
+    }
+  }
+  const confidence = Number(profile.confidence);
+  profile.confidence = Number.isFinite(confidence) ? confidence : null;
+  return profile;
+}
+
+module.exports = {
+  researchRecipient,
+  fetchPage,
+  checkOurHistory,
+  isFreeMailDomain,
+  isInternalDomain,
+  asArray,
+  sourcedList,
+};

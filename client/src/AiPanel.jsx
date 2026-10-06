@@ -18,6 +18,37 @@ function fmtSecs(ms) {
   return `${Math.round((ms || 0) / 1000)}s`;
 }
 
+function asList(value) {
+  if (Array.isArray(value)) return value;
+  if (value == null || value === '') return [];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === 'object') return [parsed];
+    } catch {
+      /* plain text */
+    }
+    return [value];
+  }
+  return typeof value === 'object' ? [value] : [];
+}
+
+function sourced(value, key) {
+  return asList(value)
+    .map((item) => (typeof item === 'string' ? { [key]: item, source_url: '' } : item))
+    .filter((item) => item && typeof item === 'object' && item[key]);
+}
+
+function SourceLink({ url }) {
+  if (!url) return null;
+  return (
+    <a href={url} target="_blank" rel="noreferrer">
+      source
+    </a>
+  );
+}
+
 function normalizeRun(run) {
   return {
     run_id: run.id ?? run.run_id,
@@ -195,6 +226,16 @@ export default function AiPanel({ events, currentEventId, user }) {
 
   const p = result?.profile || {};
   const em = result?.email || {};
+  const hooks = sourced(p.personalization_hooks, 'hook');
+  const developments = sourced(p.recent_developments, 'fact');
+  const claims = sourced(em.claims, 'claim');
+  const person = p.person && typeof p.person === 'object' ? p.person : null;
+  const textOf = (v) => {
+    if (v == null) return '';
+    if (Array.isArray(v)) return v.map(textOf).filter(Boolean).join('; ');
+    if (typeof v === 'object') return '';
+    return String(v);
+  };
 
   return (
     <main className="panel ai-panel">
@@ -340,75 +381,69 @@ export default function AiPanel({ events, currentEventId, user }) {
               <div className="ai-grid">
                 <div className="ai-card">
                   <h3>What the agent found</h3>
-                  <p>{p.what_they_do}</p>
+                  <p>{textOf(p.what_they_do)}</p>
                   <dl className="ai-facts">
-                    {p.industry && (
+                    {textOf(p.industry) && (
                       <>
                         <dt>Industry</dt>
-                        <dd>{p.industry}</dd>
+                        <dd>{textOf(p.industry)}</dd>
                       </>
                     )}
-                    {p.headquarters && (
+                    {textOf(p.headquarters) && (
                       <>
                         <dt>HQ</dt>
-                        <dd>{p.headquarters}</dd>
+                        <dd>{textOf(p.headquarters)}</dd>
                       </>
                     )}
-                    {p.person?.role && (
+                    {textOf(person?.role) && (
                       <>
                         <dt>Person</dt>
                         <dd>
-                          {p.person.name ? `${p.person.name} · ` : ''}
-                          {p.person.role}
+                          {textOf(person.name) ? `${textOf(person.name)} · ` : ''}
+                          {textOf(person.role)}
                         </dd>
                       </>
                     )}
-                    {p.our_relationship && (
+                    {textOf(p.our_relationship) && (
                       <>
                         <dt>Our history</dt>
-                        <dd>{p.our_relationship}</dd>
+                        <dd>{textOf(p.our_relationship)}</dd>
                       </>
                     )}
-                    {p.relevance_to_event && (
+                    {textOf(p.relevance_to_event) && (
                       <>
                         <dt>Why relevant</dt>
-                        <dd>{p.relevance_to_event}</dd>
+                        <dd>{textOf(p.relevance_to_event)}</dd>
                       </>
                     )}
                   </dl>
-                  {!!p.personalization_hooks?.length && (
+                  {!!hooks.length && (
                     <>
                       <h4>Personalization angles</h4>
                       <ul className="ai-sourced">
-                        {p.personalization_hooks.map((h, i) => (
+                        {hooks.map((h, i) => (
                           <li key={i}>
-                            {h.hook}{' '}
-                            <a href={h.source_url} target="_blank" rel="noreferrer">
-                              source
-                            </a>
+                            {textOf(h.hook)} <SourceLink url={textOf(h.source_url)} />
                           </li>
                         ))}
                       </ul>
                     </>
                   )}
-                  {!!p.recent_developments?.length && (
+                  {!!developments.length && (
                     <>
                       <h4>Recent developments</h4>
                       <ul className="ai-sourced">
-                        {p.recent_developments.map((d, i) => (
+                        {developments.map((d, i) => (
                           <li key={i}>
-                            {d.fact}{' '}
-                            <a href={d.source_url} target="_blank" rel="noreferrer">
-                              source
-                            </a>
+                            {textOf(d.fact)} <SourceLink url={textOf(d.source_url)} />
                           </li>
                         ))}
                       </ul>
                     </>
                   )}
-                  {p.gaps && (
+                  {textOf(p.gaps) && (
                     <p className="muted small">
-                      <strong>Couldn't verify:</strong> {p.gaps}
+                      <strong>Couldn't verify:</strong> {textOf(p.gaps)}
                     </p>
                   )}
                 </div>
@@ -416,20 +451,17 @@ export default function AiPanel({ events, currentEventId, user }) {
                 <div className="ai-card">
                   <h3>How it got there</h3>
                   <ol className="ai-steps">
-                    {result.steps.map((s, i) => (
+                    {asList(result.steps).map((s, i) => (
                       <Step key={i} step={s} />
                     ))}
                   </ol>
-                  {!!em.claims?.length && (
+                  {!!claims.length && (
                     <>
                       <h4>Claims used in the email</h4>
                       <ul className="ai-sourced">
-                        {em.claims.map((c, i) => (
+                        {claims.map((c, i) => (
                           <li key={i}>
-                            {c.claim}{' '}
-                            <a href={c.source_url} target="_blank" rel="noreferrer">
-                              source
-                            </a>
+                            {textOf(c.claim)} <SourceLink url={textOf(c.source_url)} />
                           </li>
                         ))}
                       </ul>
