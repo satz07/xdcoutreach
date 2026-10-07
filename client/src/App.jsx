@@ -962,69 +962,72 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">
-          <div className="brand-logos">
+        <div className="topbar-row">
+          <div className="brand">
             <img src={logoUrl('xdc.png')} alt="XDC Network" className="brand-xdc" />
-            <img src={logoUrl('contour.png')} alt="Contour" className="brand-contour" />
+            <span className="brand-divider" aria-hidden="true" />
+            <div>
+              <p className="eyebrow">Event Outreach</p>
+              <h1>Email Agent</h1>
+            </div>
           </div>
-          <div>
-            <p className="eyebrow">Event Outreach</p>
-            <h1>Email Agent</h1>
+          <div className="topbar-meta">
+            <label className="event-switcher" title="All work is scoped to this event">
+              <span className="eyebrow">Event</span>
+              <select
+                value={eventId || ''}
+                onChange={(e) => setEventId(Number(e.target.value) || null)}
+              >
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="topbar-status">
+              <span className={`pill ${health?.ok ? 'ok' : 'bad'}`}>
+                <span className="pill-dot" aria-hidden="true" />
+                {health?.ok ? 'DB connected' : 'DB offline'}
+              </span>
+              <span className="pill user-pill" title={user.email}>
+                {isSuperAdmin ? 'Superadmin' : 'Admin'} · {user.email}
+              </span>
+              {quota?.limited && (
+                <span className="pill">
+                  Sends left: {quota.remaining}/{quota.limit}
+                </span>
+              )}
+              <button type="button" className="ghost logout-btn" onClick={logout}>
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
-        <div className="topbar-meta">
-          <label className="event-switcher" title="All work is scoped to this event">
-            <span className="eyebrow">Event</span>
-            <select
-              value={eventId || ''}
-              onChange={(e) => setEventId(Number(e.target.value) || null)}
-            >
-              {events.map((ev) => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <span className={`pill ${health?.ok ? 'ok' : 'bad'}`}>
-            {health?.ok ? 'DB connected' : 'DB offline'}
-          </span>
-          <span className="pill user-pill" title={user.email}>
-            {isSuperAdmin ? 'Superadmin' : 'Admin'} · {user.email}
-          </span>
-          {quota?.limited && (
-            <span className="pill">
-              Sends left: {quota.remaining}/{quota.limit}
-            </span>
-          )}
-          <nav className="tabs">
-            <button className={tab === 'compose' ? 'active' : ''} onClick={() => setTab('compose')}>
-              Compose & Send
-            </button>
-            <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>
-              Send History
-            </button>
-            <button className={tab === 'events' ? 'active' : ''} onClick={() => setTab('events')}>
-              Events
-            </button>
-            <button className={tab === 'leads' ? 'active' : ''} onClick={() => setTab('leads')}>
-              Leads
-            </button>
-            {isSuperAdmin && (
-              <button className={tab === 'ai' ? 'active' : ''} onClick={() => setTab('ai')}>
-                AI Personalize
-              </button>
-            )}
-            {isSuperAdmin && (
-              <button className={tab === 'admins' ? 'active' : ''} onClick={() => setTab('admins')}>
-                Invite Admins
-              </button>
-            )}
-          </nav>
-          <button type="button" className="ghost logout-btn" onClick={logout}>
-            Sign out
+        <nav className="tabs">
+          <button className={tab === 'compose' ? 'active' : ''} onClick={() => setTab('compose')}>
+            Compose & Send
           </button>
-        </div>
+          <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>
+            Send History
+          </button>
+          <button className={tab === 'events' ? 'active' : ''} onClick={() => setTab('events')}>
+            Events
+          </button>
+          <button className={tab === 'leads' ? 'active' : ''} onClick={() => setTab('leads')}>
+            Leads
+          </button>
+          {isSuperAdmin && (
+            <button className={tab === 'ai' ? 'active' : ''} onClick={() => setTab('ai')}>
+              AI Personalize
+            </button>
+          )}
+          {isSuperAdmin && (
+            <button className={tab === 'admins' ? 'active' : ''} onClick={() => setTab('admins')}>
+              Invite Admins
+            </button>
+          )}
+        </nav>
       </header>
 
       {(error || notice) && (

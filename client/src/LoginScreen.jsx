@@ -79,9 +79,8 @@ export default function LoginScreen({ onAuthenticated, inviteToken }) {
   return (
     <div className="app auth-app">
       <div className="auth-card">
-        <div className="brand-logos auth-logos">
+        <div className="auth-logos">
           <img src={logoUrl('xdc.png')} alt="XDC Network" className="brand-xdc" />
-          <img src={logoUrl('contour.png')} alt="Contour" className="brand-contour" />
         </div>
         <p className="eyebrow">XDC Outreach</p>
         <h1>{mode === 'invite' ? 'Set your password' : 'Sign in'}</h1>
