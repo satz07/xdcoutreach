@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { claude, addUsage, emptyUsage, aiConfig, aiConfigured, estimateCost } = require('./llm');
 const { WEB_SOURCES, fetchGdelt, fetchWebMentions, fetchReddit, fetchYouTube, fetchMarket } = require('./pulseSources');
@@ -124,6 +125,11 @@ function ensurePulseTables() {
         price NUMERIC,
         volume NUMERIC,
         market_cap NUMERIC
+      );
+      CREATE TABLE IF NOT EXISTS pulse_share (
+        id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+        token TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS pulse_briefs (
         id SERIAL PRIMARY KEY,
@@ -664,6 +670,43 @@ async function latestBrief() {
   return rows[0] || null;
 }
 
+/* ---------- Read-only share link ---------- */
+
+function newShareToken() {
+  return crypto.randomBytes(24).toString('base64url');
+}
+
+async function getShareToken() {
+  await ensurePulseTables();
+  const { rows } = await pool.query(
+    `INSERT INTO pulse_share (id, token) VALUES (1, $1)
+     ON CONFLICT (id) DO UPDATE SET token = pulse_share.token
+     RETURNING token, created_at`,
+    [newShareToken()]
+  );
+  return rows[0];
+}
+
+async function rotateShareToken() {
+  await ensurePulseTables();
+  const { rows } = await pool.query(
+    `INSERT INTO pulse_share (id, token) VALUES (1, $1)
+     ON CONFLICT (id) DO UPDATE SET token = EXCLUDED.token, created_at = NOW()
+     RETURNING token, created_at`,
+    [newShareToken()]
+  );
+  return rows[0];
+}
+
+async function isValidShareToken(candidate) {
+  if (!candidate || candidate.length < 20) return false;
+  await ensurePulseTables();
+  const { rows } = await pool.query('SELECT token FROM pulse_share WHERE id = 1');
+  const token = rows[0]?.token;
+  if (!token || token.length !== candidate.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(candidate));
+}
+
 /* ---------- Scheduler ---------- */
 
 async function tick() {
@@ -712,4 +755,7 @@ module.exports = {
   generateBrief,
   latestBrief,
   initPulse,
+  getShareToken,
+  rotateShareToken,
+  isValidShareToken,
 };

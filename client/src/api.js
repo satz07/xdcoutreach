@@ -84,6 +84,8 @@ export const api = {
   pulseBrief: () => request('/pulse/brief'),
   pulseGenerateBrief: (days) => request('/pulse/brief', { method: 'POST', body: JSON.stringify({ days }) }),
   pulseRefresh: () => request('/pulse/refresh', { method: 'POST' }),
+  pulseShare: () => request('/pulse/share'),
+  pulseRotateShare: () => request('/pulse/share/rotate', { method: 'POST' }),
   mailProviders: () => request('/mail-providers'),
   createMailProvider: (body) =>
     request('/mail-providers', { method: 'POST', body: JSON.stringify(body) }),
@@ -164,6 +166,29 @@ export const api = {
   saveLeadSettings: (notifyEmails) =>
     request('/leads/settings', { method: 'PUT', body: JSON.stringify({ notifyEmails }) }),
 };
+
+/** Read-only data source for the Market Pulse dashboard: signed-in admin API or a public share link. */
+export function pulseDataSource(shareToken) {
+  if (!shareToken) {
+    return { meta: api.pulseMeta, summary: api.pulseSummary, items: api.pulseItems, brief: api.pulseBrief };
+  }
+  const base = `/public/pulse/${encodeURIComponent(shareToken)}`;
+  return {
+    meta: () => request(`${base}/meta`),
+    summary: (params = {}) => request(`${base}/summary?${new URLSearchParams(params)}`),
+    items: (params = {}) => request(`${base}/items?${new URLSearchParams(params)}`),
+    brief: () => request(`${base}/brief`),
+  };
+}
+
+export function getPulseShareTokenFromUrl() {
+  const m = /^\/pulse\/([A-Za-z0-9_-]{20,})\/?$/.exec(window.location.pathname);
+  return m ? m[1] : '';
+}
+
+export function pulseShareUrl(token) {
+  return `${window.location.origin}/pulse/${token}`;
+}
 
 export function getMeetParamsFromUrl() {
   try {

@@ -47,6 +47,22 @@ router.post('/brief', requireSuperAdmin, async (req, res) => {
   }
 });
 
+router.get('/share', requireSuperAdmin, async (_req, res) => {
+  try {
+    res.json(await pulse.getShareToken());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/share/rotate', requireSuperAdmin, async (_req, res) => {
+  try {
+    res.json(await pulse.rotateShareToken());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /** Starts a collection run in the background; the dashboard polls /summary for `running`. */
 router.post('/refresh', requireSuperAdmin, async (_req, res) => {
   if (!aiConfigured()) return res.status(400).json({ error: 'ANTHROPIC_API_KEY is not set on the server' });

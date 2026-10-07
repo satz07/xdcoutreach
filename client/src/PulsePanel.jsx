@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api } from './api';
+import { api, pulseDataSource, pulseShareUrl } from './api';
 
 const EMPTY_FILTERS = {
   period: '30d',
@@ -245,7 +245,79 @@ function SourceBadge({ source, labels }) {
   return <span className={`pulse-src pulse-src-${source}`}>{labels?.[source] || source}</span>;
 }
 
-export default function PulsePanel({ isSuperAdmin }) {
+function ShareLink() {
+  const [open, setOpen] = useState(false);
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  async function toggle() {
+    if (open) return setOpen(false);
+    setOpen(true);
+    setMsg('');
+    if (!token) {
+      try {
+        setToken((await api.pulseShare()).token);
+      } catch (e) {
+        setMsg(e.message);
+      }
+    }
+  }
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(pulseShareUrl(token));
+      setMsg('Link copied.');
+    } catch {
+      setMsg('Copy failed. Select the link and copy it manually.');
+    }
+  }
+
+  async function rotate() {
+    if (!window.confirm('Reset the link? Anyone using the current link will lose access.')) return;
+    setBusy(true);
+    try {
+      setToken((await api.pulseRotateShare()).token);
+      setMsg('New link created. The old link no longer works.');
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="pulse-share">
+      <button type="button" className="ghost" onClick={toggle} aria-expanded={open}>
+        Share link
+      </button>
+      {open && (
+        <div className="pulse-share-pop" role="dialog" aria-label="Public share link">
+          <strong>Read-only founder link</strong>
+          <p className="muted small">
+            Anyone with this link can view the dashboard without signing in. They can't refresh or change anything.
+          </p>
+          <div className="pulse-share-row">
+            <input readOnly value={token ? pulseShareUrl(token) : 'Loading…'} onFocus={(e) => e.target.select()} />
+            <button type="button" className="primary small" disabled={!token} onClick={copy}>
+              Copy
+            </button>
+          </div>
+          <div className="pulse-share-row">
+            <button type="button" className="ghost small" disabled={!token || busy} onClick={rotate}>
+              {busy ? 'Resetting…' : 'Reset link'}
+            </button>
+            {msg && <span className="muted small">{msg}</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
+  const data = useMemo(() => pulseDataSource(shareToken), [shareToken]);
+  const canManage = isSuperAdmin && !shareToken;
   const [meta, setMeta] = useState(null);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [search, setSearch] = useState('');
@@ -266,15 +338,15 @@ export default function PulsePanel({ isSuperAdmin }) {
   );
 
   const loadSummary = useCallback(async () => {
-    const s = await api.pulseSummary(params);
+    const s = await data.summary(params);
     setSummary(s);
     return s;
-  }, [params]);
+  }, [params, data]);
 
   useEffect(() => {
-    api.pulseMeta().then(setMeta).catch((e) => setError(e.message));
-    api.pulseBrief().then((r) => setBrief(r.brief)).catch(() => {});
-  }, []);
+    data.meta().then(setMeta).catch((e) => setError(e.message));
+    data.brief().then((r) => setBrief(r.brief)).catch(() => {});
+  }, [data]);
 
   useEffect(() => {
     setPage(1);
@@ -283,14 +355,14 @@ export default function PulsePanel({ isSuperAdmin }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.all([loadSummary(), api.pulseItems({ ...params, page })])
+    Promise.all([loadSummary(), data.items({ ...params, page })])
       .then(([, items]) => !cancelled && setFeed(items))
       .catch((e) => !cancelled && setError(e.message))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [params, page, loadSummary]);
+  }, [params, page, loadSummary, data]);
 
   useEffect(() => {
     clearInterval(pollRef.current);
@@ -300,13 +372,13 @@ export default function PulsePanel({ isSuperAdmin }) {
         if (s && !s.running) {
           clearInterval(pollRef.current);
           setNotice('Collection finished.');
-          api.pulseItems({ ...params, page: 1 }).then(setFeed).catch(() => {});
-          api.pulseBrief().then((r) => setBrief(r.brief)).catch(() => {});
+          data.items({ ...params, page: 1 }).then(setFeed).catch(() => {});
+          data.brief().then((r) => setBrief(r.brief)).catch(() => {});
         }
       }, 8000);
     }
     return () => clearInterval(pollRef.current);
-  }, [summary?.running, loadSummary, params]);
+  }, [summary?.running, loadSummary, params, data]);
 
   useEffect(() => {
     const t = setTimeout(() => setFilters((f) => (f.q === search ? f : { ...f, q: search })), 400);
@@ -367,7 +439,8 @@ export default function PulsePanel({ isSuperAdmin }) {
                   ? `Updated ${new Date(lastRun.finished_at).toLocaleString()}`
                   : 'Not collected yet'}
             </span>
-            {isSuperAdmin && (
+            {canManage && <ShareLink />}
+            {canManage && (
               <button type="button" className="primary" disabled={summary?.running} onClick={refresh}>
                 {summary?.running ? 'Collecting…' : 'Refresh now'}
               </button>
@@ -457,7 +530,7 @@ export default function PulsePanel({ isSuperAdmin }) {
             <PriceCard market={summary.market} />
           </section>
 
-          <BriefCard brief={brief} canGenerate={isSuperAdmin} generating={generating} onGenerate={generate} />
+          <BriefCard brief={brief} canGenerate={canManage} generating={generating} onGenerate={generate} />
 
           <section className="pulse-grid">
             <div className="panel pulse-wide">
@@ -528,7 +601,7 @@ export default function PulsePanel({ isSuperAdmin }) {
               <p className="muted pulse-none">
                 {summary.last_run
                   ? 'No mentions match these filters.'
-                  : isSuperAdmin
+                  : canManage
                     ? 'Nothing collected yet. Click "Refresh now" to run the first collection.'
                     : 'Nothing collected yet.'}
               </p>

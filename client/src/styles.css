@@ -1626,6 +1626,43 @@ button.danger-text {
   gap: 12px;
 }
 
+.pulse-share {
+  position: relative;
+}
+
+.pulse-share-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+  width: min(440px, 86vw);
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-lg);
+}
+
+.pulse-share-pop p {
+  margin: 0;
+}
+
+.pulse-share-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pulse-share-row input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+}
+
 .pulse-filters {
   display: flex;
   flex-wrap: wrap;
