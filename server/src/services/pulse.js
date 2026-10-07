@@ -140,7 +140,11 @@ function ensurePulseTables() {
         cost_usd NUMERIC(10,4),
         created_by INTEGER,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );`
+      );
+      -- X/LinkedIn mentions must link to a single post, not a profile or company page.
+      DELETE FROM pulse_items
+       WHERE source IN ('x', 'linkedin')
+         AND url !~* '(x\\.com/[^/]+/status/[0-9]+|linkedin\\.com/(posts|pulse|feed/update)/)';`
       )
       .catch((err) => {
         tablesReady = null;
