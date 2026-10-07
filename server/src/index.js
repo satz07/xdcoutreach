@@ -35,6 +35,7 @@ app.use('/api/auth', auth);
 app.use('/api/public', require('./routes/publicLeads'));
 app.use('/api/leads', require('./routes/leads'));
 app.use('/api/ai', require('./routes/ai'));
+app.use('/api/pulse', require('./routes/pulse'));
 app.use('/api', api);
 
 app.get('/', (_req, res) => {
@@ -80,6 +81,7 @@ async function start() {
     console.log(`Email Agent API running on port ${PORT}`);
     const { initAutoSend } = require('./services/autoSender');
     initAutoSend().catch((err) => console.warn('auto-send init:', err.message));
+    require('./services/pulse').initPulse();
   });
 }
 

@@ -78,6 +78,12 @@ export const api = {
   aiRuns: () => request('/ai/runs'),
   aiRun: (id) => request(`/ai/runs/${id}`),
   aiSendRun: (id, body) => request(`/ai/runs/${id}/send`, { method: 'POST', body: JSON.stringify(body) }),
+  pulseMeta: () => request('/pulse/meta'),
+  pulseSummary: (params = {}) => request(`/pulse/summary?${new URLSearchParams(params)}`),
+  pulseItems: (params = {}) => request(`/pulse/items?${new URLSearchParams(params)}`),
+  pulseBrief: () => request('/pulse/brief'),
+  pulseGenerateBrief: (days) => request('/pulse/brief', { method: 'POST', body: JSON.stringify({ days }) }),
+  pulseRefresh: () => request('/pulse/refresh', { method: 'POST' }),
   mailProviders: () => request('/mail-providers'),
   createMailProvider: (body) =>
     request('/mail-providers', { method: 'POST', body: JSON.stringify(body) }),

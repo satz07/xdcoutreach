@@ -13,6 +13,7 @@ import LoginScreen from './LoginScreen';
 import RecipientsInput from './RecipientsInput';
 import LeadsPanel from './LeadsPanel';
 import AiPanel from './AiPanel';
+import PulsePanel from './PulsePanel';
 import SimpleInviteFields from './SimpleInviteFields';
 
 const DEFAULT_SUBJECT =
@@ -235,7 +236,7 @@ export default function App() {
 
   const [tab, setTab] = useState(() => {
     const t = new URLSearchParams(window.location.search).get('tab');
-    return ['compose', 'history', 'events', 'leads', 'ai', 'admins'].includes(t) ? t : 'compose';
+    return ['compose', 'history', 'events', 'leads', 'pulse', 'ai', 'admins'].includes(t) ? t : 'compose';
   });
   const [health, setHealth] = useState(null);
   const [events, setEvents] = useState([]);
@@ -1016,6 +1017,9 @@ export default function App() {
           </button>
           <button className={tab === 'leads' ? 'active' : ''} onClick={() => setTab('leads')}>
             Leads
+          </button>
+          <button className={tab === 'pulse' ? 'active' : ''} onClick={() => setTab('pulse')}>
+            Market Pulse
           </button>
           {isSuperAdmin && (
             <button className={tab === 'ai' ? 'active' : ''} onClick={() => setTab('ai')}>
@@ -2310,6 +2314,8 @@ export default function App() {
       {tab === 'ai' && isSuperAdmin && (
         <AiPanel events={events} currentEventId={eventId} user={user} />
       )}
+
+      {tab === 'pulse' && <PulsePanel isSuperAdmin={isSuperAdmin} />}
 
       {tab === 'leads' && (
         <LeadsPanel
