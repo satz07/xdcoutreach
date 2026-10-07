@@ -59,7 +59,7 @@ async function fetchGdelt({ timespan = '7d' } = {}) {
 
   let body = '';
   let lastError = '';
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(90000) });
       body = await res.text();
@@ -69,7 +69,7 @@ async function fetchGdelt({ timespan = '7d' } = {}) {
       lastError = err.cause?.code || err.message;
     }
     body = '';
-    await sleep(7000 * (attempt + 1));
+    await sleep(10000 * 2 ** attempt);
   }
   if (!body) throw new Error(`GDELT unavailable (${lastError})`);
   let data;
@@ -334,11 +334,15 @@ async function fetchYouTube({ days = 7 } = {}) {
 /** Daily XDC price, volume and market cap from CoinGecko's public API. */
 async function fetchMarket({ days = 90 } = {}) {
   const headers = process.env.COINGECKO_API_KEY ? { 'x-cg-demo-api-key': process.env.COINGECKO_API_KEY } : {};
-  const res = await fetch(
-    `https://api.coingecko.com/api/v3/coins/xdce-crowd-sale/market_chart?vs_currency=usd&days=${days}&interval=daily`,
-    { headers, signal: AbortSignal.timeout(30000) }
-  );
-  const data = await res.json();
+  const url = `https://api.coingecko.com/api/v3/coins/xdce-crowd-sale/market_chart?vs_currency=usd&days=${days}&interval=daily`;
+  let res;
+  let data;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    res = await fetch(url, { headers, signal: AbortSignal.timeout(30000) });
+    data = await res.json().catch(() => ({}));
+    if (res.status !== 429) break;
+    await sleep(Number(res.headers.get('retry-after')) * 1000 || 20000 * (attempt + 1));
+  }
   if (!res.ok || !Array.isArray(data.prices)) throw new Error(data?.error || `CoinGecko ${res.status}`);
   const byDay = new Map();
   const put = (arr, field) => {

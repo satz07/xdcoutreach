@@ -300,6 +300,18 @@ async function lastSourceRun(key) {
   return rows[0]?.at ? new Date(rows[0].at) : null;
 }
 
+async function refreshMarket() {
+  const days = await fetchMarket({ days: 90 });
+  for (const d of days) {
+    await pool.query(
+      `INSERT INTO pulse_market (day, price, volume, market_cap) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (day) DO UPDATE SET price = EXCLUDED.price, volume = EXCLUDED.volume, market_cap = EXCLUDED.market_cap`,
+      [d.day, d.price ?? null, d.volume ?? null, d.market_cap ?? null]
+    );
+  }
+  return days.length;
+}
+
 let running = null;
 
 /** Collect from every source that is due, tag new items, refresh market data. */
@@ -353,15 +365,7 @@ async function runPulse({ trigger = 'schedule', force = false } = {}) {
       }
 
       try {
-        const days = await fetchMarket({ days: 90 });
-        for (const d of days) {
-          await pool.query(
-            `INSERT INTO pulse_market (day, price, volume, market_cap) VALUES ($1,$2,$3,$4)
-             ON CONFLICT (day) DO UPDATE SET price = EXCLUDED.price, volume = EXCLUDED.volume, market_cap = EXCLUDED.market_cap`,
-            [d.day, d.price ?? null, d.volume ?? null, d.market_cap ?? null]
-          );
-        }
-        stats.market = { days: days.length };
+        stats.market = { days: await refreshMarket() };
       } catch (err) {
         stats.market = { error: err.message };
       }
@@ -672,6 +676,11 @@ async function tick() {
     if (Date.now() - last >= INTERVAL_HOURS * 36e5) {
       const r = await runPulse({ trigger: 'schedule' });
       if (r?.stats) console.log('pulse run', JSON.stringify(r.stats), `$${r.cost_usd}`);
+    } else if (!isRunning()) {
+      const { rows: m } = await pool.query('SELECT MAX(day) AS day FROM pulse_market');
+      if (!m[0]?.day || Date.now() - new Date(m[0].day).getTime() > 2 * 864e5) {
+        await refreshMarket().catch((err) => console.warn('pulse market:', err.message));
+      }
     }
     const brief = await latestBrief();
     const isMonday = new Date().getUTCDay() === 1;
