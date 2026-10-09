@@ -1,5 +1,6 @@
 const express = require('express');
 const pulse = require('../services/pulse');
+const companyReport = require('../services/companyReport');
 
 const router = express.Router();
 
@@ -65,6 +66,26 @@ router.get('/:token/brief', async (_req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Could not load the brief.' });
+  }
+});
+
+router.get('/:token/company-reports', async (_req, res) => {
+  try {
+    const reports = await companyReport.listReports();
+    res.json({ reports: reports.filter((r) => r.status === 'done').map(({ cost_usd, ...r }) => r) });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not load company reports.' });
+  }
+});
+
+router.get('/:token/company-reports/:id', async (req, res) => {
+  try {
+    const report = await companyReport.getReport(Number(req.params.id));
+    if (!report || report.status !== 'done') return res.status(404).json({ error: 'Report not found' });
+    const { cost_usd, ...rest } = report;
+    res.json({ report: rest });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not load the report.' });
   }
 });
 

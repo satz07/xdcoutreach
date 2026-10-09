@@ -2,6 +2,7 @@ const express = require('express');
 const { requireAuth, requireSuperAdmin } = require('../middleware/auth');
 const { aiConfigured } = require('../services/llm');
 const pulse = require('../services/pulse');
+const companyReport = require('../services/companyReport');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -60,6 +61,35 @@ router.post('/share/rotate', requireSuperAdmin, async (_req, res) => {
     res.json(await pulse.rotateShareToken());
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/company-reports', async (_req, res) => {
+  try {
+    res.json({ reports: await companyReport.listReports() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/company-reports/:id', async (req, res) => {
+  try {
+    const report = await companyReport.getReport(Number(req.params.id));
+    if (!report) return res.status(404).json({ error: 'Report not found' });
+    res.json({ report });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Starts research in the background; the client polls GET /company-reports/:id until status is done or failed. */
+router.post('/company-reports', requireSuperAdmin, async (req, res) => {
+  if (!aiConfigured()) return res.status(400).json({ error: 'ANTHROPIC_API_KEY is not set on the server' });
+  try {
+    const { company, website, focus } = req.body || {};
+    res.json({ report: await companyReport.startReport({ company, website, focus, userId: req.user?.id }) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

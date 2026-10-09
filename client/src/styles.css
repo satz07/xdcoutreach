@@ -2167,3 +2167,219 @@ button.danger-text {
     grid-template-columns: 1fr;
   }
 }
+
+/* Company research */
+.company-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(150px, 1fr) minmax(180px, 1.4fr) auto;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.company-recent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.company-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--field);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text, #1b2a44);
+  cursor: pointer;
+}
+
+.company-chip:hover {
+  border-color: var(--blue);
+}
+
+.company-chip.active {
+  background: linear-gradient(135deg, var(--blue), var(--sky));
+  border-color: transparent;
+  color: #fff;
+}
+
+.company-chip.failed {
+  color: #b42318;
+}
+
+.company-chip.failed.active {
+  color: #fff;
+}
+
+.company-running {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-soft);
+  font-size: 14px;
+}
+
+.company-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--blue-soft);
+  border-top-color: var(--blue);
+  animation: company-spin 0.9s linear infinite;
+}
+
+@keyframes company-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.company-report {
+  margin-top: 16px;
+  padding: 20px 22px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+}
+
+.company-report-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.company-report-head h3 {
+  margin: 2px 0;
+  font-size: 20px;
+}
+
+.company-sentiment {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: capitalize;
+  white-space: nowrap;
+  background: var(--blue-soft);
+  color: var(--blue-dark);
+}
+
+.company-sentiment.s-positive {
+  background: #e3f6ec;
+  color: #1f7a4d;
+}
+
+.company-sentiment.s-negative {
+  background: #fde8e7;
+  color: #b42318;
+}
+
+.company-sentiment.s-mixed {
+  background: #fff4e0;
+  color: #9a5b00;
+}
+
+.company-headline {
+  margin: 14px 0 6px;
+  font-family: var(--heading);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.company-summary {
+  margin: 0 0 12px;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.company-profile {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.company-profile p {
+  margin: 0 0 8px;
+}
+
+.company-profile dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 0;
+}
+
+.company-profile dt {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.company-profile dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.company-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 28px;
+}
+
+.company-section h4 {
+  margin: 16px 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--blue-dark);
+}
+
+.company-section ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.company-section li {
+  margin-bottom: 6px;
+}
+
+.company-src {
+  font-size: 12px;
+  color: var(--blue);
+}
+
+.company-sources {
+  margin-top: 12px;
+}
+
+.company-sources ol {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.company-sources a {
+  color: inherit;
+}
+
+@media (max-width: 900px) {
+  .company-form,
+  .company-grid {
+    grid-template-columns: 1fr;
+  }
+}

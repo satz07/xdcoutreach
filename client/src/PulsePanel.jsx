@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, pulseDataSource, pulseShareUrl } from './api';
+import CompanyReport from './CompanyReport';
 
 const EMPTY_FILTERS = {
   period: '30d',
@@ -531,6 +532,8 @@ export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
           </section>
 
           <BriefCard brief={brief} canGenerate={canManage} generating={generating} onGenerate={generate} />
+
+          <CompanyReport data={data} canRun={canManage} />
 
           <section className="pulse-grid">
             <div className="panel pulse-wide">
