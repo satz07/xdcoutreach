@@ -234,7 +234,8 @@ export default function AiPanel({ events, currentEventId, user }) {
     if (v == null) return '';
     if (Array.isArray(v)) return v.map(textOf).filter(Boolean).join('; ');
     if (typeof v === 'object') return '';
-    return String(v);
+    // Web search answers can carry <cite index="..."> citation markup.
+    return String(v).replace(/<\/?cite[^>]*>/gi, '');
   };
 
   return (
