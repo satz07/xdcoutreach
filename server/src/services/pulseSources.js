@@ -80,7 +80,7 @@ function describeEntity(entity) {
     name,
     entity.description ? ` (${entity.description})` : '',
     entity.website ? `, website ${entity.website}` : '',
-    aliases.length ? `, also known as ${aliases.join(', ')}` : '',
+    aliases.length ? `; related names (other brands, parent company or key people): ${aliases.join(', ')}` : '',
   ].join('');
 }
 
@@ -167,11 +167,11 @@ const WEB_SOURCES = {
   },
 };
 
-/** Searches for any other tracked company, per platform. */
+/** Searches for any other tracked company, per platform. `n` covers every name it goes by. */
 const COMPANY_QUERIES = {
-  x: (n) => [`"${n}"`, `"${n}" news OR announcement OR launch`, `"${n}" review OR opinion`],
-  linkedin: (n) => [`"${n}"`, `"${n}" partnership OR launch OR project`, `"${n}" hiring OR team OR award`],
-  web: (n) => [`"${n}" news`, `"${n}" partnership OR expansion OR project`, `"${n}" analysis OR review OR opinion`],
+  x: (n) => [n, `${n} news OR announcement OR launch`, `${n} review OR opinion`],
+  linkedin: (n) => [n, `${n} partnership OR launch OR project`, `${n} hiring OR team OR award`],
+  web: (n) => [`${n} news`, `${n} partnership OR expansion OR project`, `${n} analysis OR review OR opinion`],
 };
 
 function monthTag() {
@@ -216,7 +216,7 @@ async function fetchWebMentions(sourceKey, entity) {
   const usage = emptyUsage();
   const model = aiConfig().researchModel;
   const xdc = isXdc(entity);
-  const queries = xdc ? cfg.queries : COMPANY_QUERIES[sourceKey](entity.name);
+  const queries = xdc ? cfg.queries : COMPANY_QUERIES[sourceKey](orQuery(namesOf(entity)));
 
   const search = { type: 'web_search_20250305', name: 'web_search', max_uses: queries.length + 1 };
   if (cfg.allowed_domains) search.allowed_domains = cfg.allowed_domains;
@@ -230,7 +230,7 @@ async function fetchWebMentions(sourceKey, entity) {
       : 'We care most about the last 30 days, both what the company announces and what outsiders (customers, investors, analysts, media, partners) say about it.',
     xdc
       ? 'Then call save_mentions with every distinct result that is actually about XDC Network (skip Xilinx .xdc files and unrelated "XDC" acronyms, profile pages with no content, and duplicates).'
-      : `Then call save_mentions with every distinct result that is actually about ${entity.name} (skip other organisations or people with a similar name, profile pages with no content, and duplicates).`,
+      : `Then call save_mentions with every distinct result that is actually about ${entity.name}, including posts by or about its related names that concern the company (skip other organisations or people with a similar name, profile pages with no content, and duplicates).`,
     ...(cfg.postsOnly
       ? ['Only save results whose URL is a single post or article. Skip profile, company, hashtag and search pages even if their snippet mentions the company.']
       : []),

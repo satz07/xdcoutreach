@@ -41,6 +41,15 @@ router.post('/entities', requireSuperAdmin, async (req, res) => {
   }
 });
 
+router.patch('/entities/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    const { name, aliases, website, description } = req.body || {};
+    res.json({ entity: await pulse.updateEntity(Number(req.params.id), { name, aliases, website, description }) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.delete('/entities/:id', requireSuperAdmin, async (req, res) => {
   try {
     res.json(await pulse.removeEntity(Number(req.params.id)));

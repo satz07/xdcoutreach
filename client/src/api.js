@@ -86,6 +86,7 @@ export const api = {
     request('/pulse/brief', { method: 'POST', body: JSON.stringify({ days, entity }) }),
   pulseRefresh: (entity) => request('/pulse/refresh', { method: 'POST', body: JSON.stringify({ entity }) }),
   pulseAddEntity: (body) => request('/pulse/entities', { method: 'POST', body: JSON.stringify(body) }),
+  pulseUpdateEntity: (id, body) => request(`/pulse/entities/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   pulseRemoveEntity: (id) => request(`/pulse/entities/${id}`, { method: 'DELETE' }),
   pulseStartCompanyReport: (body) => request('/pulse/company-reports', { method: 'POST', body: JSON.stringify(body) }),
   pulseShare: () => request('/pulse/share'),

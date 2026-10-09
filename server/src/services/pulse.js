@@ -253,10 +253,7 @@ async function addEntity({ name, aliases, website, description, userId }) {
   if (n.length < 2) throw new Error('Enter a company name.');
   const { rows: count } = await pool.query("SELECT COUNT(*)::int AS n FROM pulse_entities WHERE kind <> 'xdc'");
   if (count[0].n >= MAX_TRACKED) throw new Error(`You can track up to ${MAX_TRACKED} companies. Remove one first.`);
-  const aliasList = (Array.isArray(aliases) ? aliases : String(aliases || '').split(','))
-    .map((a) => cleanText(a, 80))
-    .filter((a) => a.length >= 2 && a.toLowerCase() !== n.toLowerCase())
-    .slice(0, 5);
+  const aliasList = cleanAliases(aliases, n);
   try {
     const { rows } = await pool.query(
       `INSERT INTO pulse_entities (name, aliases, website, description, created_by)
@@ -272,6 +269,39 @@ async function addEntity({ name, aliases, website, description, userId }) {
       })
       .catch((err) => console.warn(`pulse first run for ${entity.name}:`, err.message));
     return entity;
+  } catch (err) {
+    if (err.code === '23505') throw new Error(`${n} is already tracked.`);
+    throw err;
+  }
+}
+
+function cleanAliases(aliases, name) {
+  return (Array.isArray(aliases) ? aliases : String(aliases || '').split(','))
+    .map((a) => cleanText(a, 80))
+    .filter((a) => a.length >= 2 && a.toLowerCase() !== name.toLowerCase())
+    .slice(0, 5);
+}
+
+/** Change a tracked company's names or details; the next collection uses them. */
+async function updateEntity(id, { name, aliases, website, description }) {
+  const entity = await getEntity(id);
+  if (!entity || Number(id) !== entity.id) throw new Error('Company not found.');
+  if (isXdc(entity)) throw new Error('XDC Network cannot be edited.');
+  const n = cleanText(name ?? entity.name, 120);
+  if (n.length < 2) throw new Error('Enter a company name.');
+  try {
+    const { rows } = await pool.query(
+      `UPDATE pulse_entities SET name = $2, aliases = $3, website = $4, description = $5 WHERE id = $1
+       RETURNING ${ENTITY_COLS}`,
+      [
+        entity.id,
+        n,
+        aliases === undefined ? entity.aliases : cleanAliases(aliases, n),
+        website === undefined ? entity.website : cleanText(website, 200) || null,
+        description === undefined ? entity.description : cleanText(description, 300) || null,
+      ]
+    );
+    return rows[0];
   } catch (err) {
     if (err.code === '23505') throw new Error(`${n} is already tracked.`);
     throw err;
@@ -969,6 +999,7 @@ module.exports = {
   listEntities,
   getEntity,
   addEntity,
+  updateEntity,
   removeEntity,
   runPulse,
   isRunning,

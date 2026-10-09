@@ -318,8 +318,9 @@ function ShareLink() {
 
 const EMPTY_TRACK = { name: '', website: '', aliases: '', description: '' };
 
-function EntityBar({ entities, activeId, canManage, onSwitch, onAdded, onRemoved, prefill }) {
+function EntityBar({ entities, activeId, canManage, onSwitch, onAdded, onEdited, onRemoved, prefill }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_TRACK);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -327,6 +328,7 @@ function EntityBar({ entities, activeId, canManage, onSwitch, onAdded, onRemoved
   useEffect(() => {
     if (!prefill) return;
     setForm({ ...EMPTY_TRACK, ...prefill });
+    setEditing(null);
     setOpen(true);
     setError('');
   }, [prefill]);
@@ -336,10 +338,11 @@ function EntityBar({ entities, activeId, canManage, onSwitch, onAdded, onRemoved
     setBusy(true);
     setError('');
     try {
-      const r = await api.pulseAddEntity(form);
+      const r = editing ? await api.pulseUpdateEntity(editing.id, form) : await api.pulseAddEntity(form);
       setForm(EMPTY_TRACK);
       setOpen(false);
-      onAdded(r.entity);
+      setEditing(null);
+      (editing ? onEdited : onAdded)(r.entity);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -359,6 +362,29 @@ function EntityBar({ entities, activeId, canManage, onSwitch, onAdded, onRemoved
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  function startEdit(entity) {
+    setEditing(entity);
+    setForm({
+      name: entity.name,
+      website: entity.website || '',
+      aliases: (entity.aliases || []).join(', '),
+      description: entity.description || '',
+    });
+    setError('');
+    setOpen(true);
+  }
+
+  function toggleAdd() {
+    if (open) {
+      setOpen(false);
+      setEditing(null);
+      return;
+    }
+    setForm(EMPTY_TRACK);
+    setEditing(null);
+    setOpen(true);
+  }
+
   if (!canManage && entities.length < 2) return null;
   return (
     <div className="pulse-entities">
@@ -370,6 +396,11 @@ function EntityBar({ entities, activeId, canManage, onSwitch, onAdded, onRemoved
               {e.name}
               <small>{e.mentions_30d ?? 0}</small>
             </button>
+            {canManage && e.kind !== 'xdc' && String(e.id) === activeId && (
+              <button type="button" className="pulse-entity-x" title={`Edit names for ${e.name}`} onClick={() => startEdit(e)}>
+                ✎
+              </button>
+            )}
             {canManage && e.kind !== 'xdc' && (
               <button type="button" className="pulse-entity-x" title={`Stop tracking ${e.name}`} onClick={() => remove(e)}>
                 ×
@@ -378,7 +409,7 @@ function EntityBar({ entities, activeId, canManage, onSwitch, onAdded, onRemoved
           </span>
         ))}
         {canManage && (
-          <button type="button" className="ghost small pulse-entity-add" onClick={() => setOpen((v) => !v)}>
+          <button type="button" className="ghost small pulse-entity-add" onClick={toggleAdd}>
             {open ? 'Cancel' : '+ Track a company'}
           </button>
         )}
@@ -387,18 +418,23 @@ function EntityBar({ entities, activeId, canManage, onSwitch, onAdded, onRemoved
         <form className="pulse-track-form" onSubmit={submit}>
           <input required placeholder="Company name, e.g. Aldar Properties" value={form.name} onChange={set('name')} />
           <input placeholder="Website (optional)" value={form.website} onChange={set('website')} />
-          <input placeholder="Other names, comma separated (optional)" value={form.aliases} onChange={set('aliases')} />
+          <input
+            placeholder="Other names: brands, parent company, founder (comma separated)"
+            value={form.aliases}
+            onChange={set('aliases')}
+          />
           <input
             placeholder="What they do, to tell them apart from similar names (optional)"
             value={form.description}
             onChange={set('description')}
           />
           <button type="submit" className="primary" disabled={busy || !form.name.trim()}>
-            {busy ? 'Adding…' : 'Start tracking'}
+            {busy ? 'Saving…' : editing ? 'Save and re-collect' : 'Start tracking'}
           </button>
           <p className="muted small">
-            Collects news, X, LinkedIn and web mentions now and then every 6 hours, with AI tagging and a weekly brief.
-            The first collection takes 3–5 minutes.
+            {editing
+              ? 'Every name is searched. Saving starts a fresh collection with the new names.'
+              : 'Collects news, X, LinkedIn and web mentions now and then every 6 hours, with AI tagging and a weekly brief. Every name is searched, so add the brand names and founders people actually use. The first collection takes 3–5 minutes.'}
           </p>
         </form>
       )}
@@ -579,6 +615,16 @@ export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
             switchEntity(entity.id);
             setNotice(`Now tracking ${entity.name}. Collecting the first mentions; this takes 3–5 minutes and the dashboard updates itself.`);
           }}
+          onEdited={(entity) => {
+            loadMeta();
+            api
+              .pulseRefresh(entity.id)
+              .then(() => {
+                setSummary((s) => (s ? { ...s, running: true } : s));
+                setNotice(`Saved. Collecting ${entity.name} again with the new names; this takes 3–5 minutes.`);
+              })
+              .catch((e) => setError(e.message));
+          }}
           onRemoved={(entity) => {
             if (String(entity.id) === entityId) switchEntity(1);
             else loadMeta();
@@ -747,7 +793,11 @@ export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
             </div>
             {!feed.items.length ? (
               <p className="muted pulse-none">
-                {summary.last_run
+                {summary.running
+                  ? 'Collecting mentions now…'
+                  : summary.last_run && !activeFilters && meta?.entity?.kind !== 'xdc'
+                  ? `No public mentions of ${entityName} found yet. Smaller companies are mentioned less often online. Add the names people actually use (brand, parent company, founder) with ✎ next to its name.`
+                  : summary.last_run
                   ? 'No mentions match these filters.'
                   : canManage
                     ? 'Nothing collected yet. Click "Refresh now" to run the first collection.'
