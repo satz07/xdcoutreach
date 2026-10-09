@@ -41,7 +41,7 @@ const sourcedPoint = (item) =>
     </>
   );
 
-function ReportView({ report }) {
+function ReportView({ report, onTrack, isTracked }) {
   const [showSources, setShowSources] = useState(false);
   const c = report.content || {};
   const p = c.profile && typeof c.profile === 'object' ? c.profile : {};
@@ -67,7 +67,27 @@ function ReportView({ report }) {
             </a>
           )}
         </div>
-        {c.sentiment && <span className={`company-sentiment s-${c.sentiment}`}>{c.sentiment} coverage</span>}
+        <div className="company-report-actions">
+          {c.sentiment && <span className={`company-sentiment s-${c.sentiment}`}>{c.sentiment} coverage</span>}
+          {onTrack &&
+            (isTracked ? (
+              <span className="muted small">Tracked in Market Pulse</span>
+            ) : (
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() =>
+                  onTrack({
+                    name: report.company,
+                    website: p.website || report.website || '',
+                    description: String(p.what_they_do || '').slice(0, 200),
+                  })
+                }
+              >
+                Track in Market Pulse
+              </button>
+            ))}
+        </div>
       </header>
 
       {c.headline && <p className="company-headline">{c.headline}</p>}
@@ -152,7 +172,7 @@ function ReportView({ report }) {
   );
 }
 
-export default function CompanyReport({ data, canRun }) {
+export default function CompanyReport({ data, canRun, tracked = [], onTrack }) {
   const [reports, setReports] = useState([]);
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState({ company: '', website: '', focus: '' });
@@ -277,7 +297,13 @@ export default function CompanyReport({ data, canRun }) {
         </div>
       )}
       {selected?.status === 'failed' && <div className="banner error">{selected.error || 'Research failed.'}</div>}
-      {selected?.status === 'done' && <ReportView report={selected} />}
+      {selected?.status === 'done' && (
+        <ReportView
+          report={selected}
+          onTrack={canRun ? onTrack : null}
+          isTracked={tracked.some((e) => e.name.toLowerCase() === selected.company.toLowerCase())}
+        />
+      )}
     </section>
   );
 }

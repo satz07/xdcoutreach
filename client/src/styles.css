@@ -1713,6 +1713,112 @@ button.danger-text {
   margin-top: 12px;
 }
 
+.pulse-entities {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.pulse-entity-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pulse-entity {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--field);
+}
+
+.pulse-entity:hover {
+  border-color: var(--blue);
+}
+
+.pulse-entity button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 13px;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+
+.pulse-entity small {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(40, 90, 160, 0.1);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pulse-entity.active {
+  background: linear-gradient(135deg, var(--blue), var(--sky));
+  border-color: transparent;
+  color: #fff;
+}
+
+.pulse-entity.active small {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.pulse-entity .pulse-entity-x {
+  padding: 6px 11px 6px 2px;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0.55;
+}
+
+.pulse-entity .pulse-entity-x:hover {
+  opacity: 1;
+}
+
+.pulse-entity-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2fb47c;
+  animation: pulse-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.pulse-track-form {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.1fr) minmax(130px, 0.8fr) minmax(170px, 1fr) minmax(200px, 1.5fr) auto;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pulse-track-form p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .pulse-track-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+.company-report-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
 .pulse-kpis {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

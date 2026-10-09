@@ -30,8 +30,14 @@ router.use('/:token', async (req, res, next) => {
   }
 });
 
-router.get('/:token/meta', (_req, res) => {
-  res.json({ taxonomy: pulse.TAXONOMY });
+router.get('/:token/meta', async (req, res) => {
+  try {
+    const [entity, entities] = await Promise.all([pulse.getEntity(req.query.entity), pulse.listEntities()]);
+    const pick = (e) => e && { id: e.id, name: e.name, kind: e.kind, website: e.website, mentions_30d: e.mentions_30d };
+    res.json({ taxonomy: pulse.taxonomyFor(entity), entity: pick(entity), entities: entities.map(pick) });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not load the dashboard.' });
+  }
 });
 
 router.get('/:token/summary', async (req, res) => {
@@ -52,9 +58,10 @@ router.get('/:token/items', async (req, res) => {
   }
 });
 
-router.get('/:token/brief', async (_req, res) => {
+router.get('/:token/brief', async (req, res) => {
   try {
-    const brief = await pulse.latestBrief();
+    const entity = await pulse.getEntity(req.query.entity);
+    const brief = await pulse.latestBrief(entity?.id);
     res.json({
       brief: brief && {
         content: brief.content,

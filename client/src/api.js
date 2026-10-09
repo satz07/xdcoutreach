@@ -78,12 +78,15 @@ export const api = {
   aiRuns: () => request('/ai/runs'),
   aiRun: (id) => request(`/ai/runs/${id}`),
   aiSendRun: (id, body) => request(`/ai/runs/${id}/send`, { method: 'POST', body: JSON.stringify(body) }),
-  pulseMeta: () => request('/pulse/meta'),
+  pulseMeta: (params = {}) => request(`/pulse/meta?${new URLSearchParams(params)}`),
   pulseSummary: (params = {}) => request(`/pulse/summary?${new URLSearchParams(params)}`),
   pulseItems: (params = {}) => request(`/pulse/items?${new URLSearchParams(params)}`),
-  pulseBrief: () => request('/pulse/brief'),
-  pulseGenerateBrief: (days) => request('/pulse/brief', { method: 'POST', body: JSON.stringify({ days }) }),
-  pulseRefresh: () => request('/pulse/refresh', { method: 'POST' }),
+  pulseBrief: (params = {}) => request(`/pulse/brief?${new URLSearchParams(params)}`),
+  pulseGenerateBrief: (days, entity) =>
+    request('/pulse/brief', { method: 'POST', body: JSON.stringify({ days, entity }) }),
+  pulseRefresh: (entity) => request('/pulse/refresh', { method: 'POST', body: JSON.stringify({ entity }) }),
+  pulseAddEntity: (body) => request('/pulse/entities', { method: 'POST', body: JSON.stringify(body) }),
+  pulseRemoveEntity: (id) => request(`/pulse/entities/${id}`, { method: 'DELETE' }),
   pulseStartCompanyReport: (body) => request('/pulse/company-reports', { method: 'POST', body: JSON.stringify(body) }),
   pulseShare: () => request('/pulse/share'),
   pulseRotateShare: () => request('/pulse/share/rotate', { method: 'POST' }),
@@ -182,10 +185,10 @@ export function pulseDataSource(shareToken) {
   }
   const base = `/public/pulse/${encodeURIComponent(shareToken)}`;
   return {
-    meta: () => request(`${base}/meta`),
+    meta: (params = {}) => request(`${base}/meta?${new URLSearchParams(params)}`),
     summary: (params = {}) => request(`${base}/summary?${new URLSearchParams(params)}`),
     items: (params = {}) => request(`${base}/items?${new URLSearchParams(params)}`),
-    brief: () => request(`${base}/brief`),
+    brief: (params = {}) => request(`${base}/brief?${new URLSearchParams(params)}`),
     companyReports: () => request(`${base}/company-reports`),
     companyReport: (id) => request(`${base}/company-reports/${id}`),
   };

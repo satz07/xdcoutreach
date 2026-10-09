@@ -316,9 +316,102 @@ function ShareLink() {
   );
 }
 
+const EMPTY_TRACK = { name: '', website: '', aliases: '', description: '' };
+
+function EntityBar({ entities, activeId, canManage, onSwitch, onAdded, onRemoved, prefill }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_TRACK);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!prefill) return;
+    setForm({ ...EMPTY_TRACK, ...prefill });
+    setOpen(true);
+    setError('');
+  }, [prefill]);
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api.pulseAddEntity(form);
+      setForm(EMPTY_TRACK);
+      setOpen(false);
+      onAdded(r.entity);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(entity) {
+    if (!window.confirm(`Stop tracking ${entity.name}? Its collected mentions and briefs will be deleted.`)) return;
+    try {
+      await api.pulseRemoveEntity(entity.id);
+      onRemoved(entity);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  if (!canManage && entities.length < 2) return null;
+  return (
+    <div className="pulse-entities">
+      <div className="pulse-entity-row" role="tablist" aria-label="Tracked companies">
+        {entities.map((e) => (
+          <span key={e.id} className={`pulse-entity ${String(e.id) === activeId ? 'active' : ''}`}>
+            <button type="button" role="tab" aria-selected={String(e.id) === activeId} onClick={() => onSwitch(e.id)}>
+              {e.running && <i className="pulse-entity-dot" title="Collecting now" />}
+              {e.name}
+              <small>{e.mentions_30d ?? 0}</small>
+            </button>
+            {canManage && e.kind !== 'xdc' && (
+              <button type="button" className="pulse-entity-x" title={`Stop tracking ${e.name}`} onClick={() => remove(e)}>
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        {canManage && (
+          <button type="button" className="ghost small pulse-entity-add" onClick={() => setOpen((v) => !v)}>
+            {open ? 'Cancel' : '+ Track a company'}
+          </button>
+        )}
+      </div>
+      {open && (
+        <form className="pulse-track-form" onSubmit={submit}>
+          <input required placeholder="Company name, e.g. Aldar Properties" value={form.name} onChange={set('name')} />
+          <input placeholder="Website (optional)" value={form.website} onChange={set('website')} />
+          <input placeholder="Other names, comma separated (optional)" value={form.aliases} onChange={set('aliases')} />
+          <input
+            placeholder="What they do, to tell them apart from similar names (optional)"
+            value={form.description}
+            onChange={set('description')}
+          />
+          <button type="submit" className="primary" disabled={busy || !form.name.trim()}>
+            {busy ? 'Adding…' : 'Start tracking'}
+          </button>
+          <p className="muted small">
+            Collects news, X, LinkedIn and web mentions now and then every 6 hours, with AI tagging and a weekly brief.
+            The first collection takes 3–5 minutes.
+          </p>
+        </form>
+      )}
+      {error && <div className="banner error">{error}</div>}
+    </div>
+  );
+}
+
 export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
   const data = useMemo(() => pulseDataSource(shareToken), [shareToken]);
   const canManage = isSuperAdmin && !shareToken;
+  const [entityId, setEntityId] = useState(() => (shareToken ? '1' : localStorage.getItem('pulse_entity') || '1'));
+  const [trackPrefill, setTrackPrefill] = useState(null);
   const [meta, setMeta] = useState(null);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [search, setSearch] = useState('');
@@ -333,9 +426,10 @@ export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
   const pollRef = useRef(null);
 
   const tx = meta?.taxonomy || {};
+  const entityName = meta?.entity?.name || 'XDC';
   const params = useMemo(
-    () => Object.fromEntries(Object.entries(filters).filter(([, v]) => v)),
-    [filters]
+    () => ({ entity: entityId, ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) }),
+    [filters, entityId]
   );
 
   const loadSummary = useCallback(async () => {
@@ -344,10 +438,35 @@ export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
     return s;
   }, [params, data]);
 
+  const loadMeta = useCallback(
+    () =>
+      data
+        .meta({ entity: entityId })
+        .then((m) => {
+          if (!m.entity) return setEntityId('1');
+          setMeta(m);
+        })
+        .catch((e) => setError(e.message)),
+    [data, entityId]
+  );
+
   useEffect(() => {
-    data.meta().then(setMeta).catch((e) => setError(e.message));
-    data.brief().then((r) => setBrief(r.brief)).catch(() => {});
-  }, [data]);
+    if (!shareToken) localStorage.setItem('pulse_entity', entityId);
+    setBrief(null);
+    loadMeta();
+    data.brief({ entity: entityId }).then((r) => setBrief(r.brief)).catch(() => {});
+  }, [data, entityId, shareToken, loadMeta]);
+
+  function switchEntity(id) {
+    if (String(id) === entityId) return;
+    setEntityId(String(id));
+    setSearch('');
+    setFilters((f) => ({ ...EMPTY_FILTERS, period: f.period }));
+    setSummary(null);
+    setFeed({ items: [], total: 0, page: 1, page_size: 25 });
+    setError('');
+    setNotice('');
+  }
 
   useEffect(() => {
     setPage(1);
@@ -374,12 +493,13 @@ export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
           clearInterval(pollRef.current);
           setNotice('Collection finished.');
           data.items({ ...params, page: 1 }).then(setFeed).catch(() => {});
-          data.brief().then((r) => setBrief(r.brief)).catch(() => {});
+          data.brief({ entity: entityId }).then((r) => setBrief(r.brief)).catch(() => {});
+          loadMeta();
         }
       }, 8000);
     }
     return () => clearInterval(pollRef.current);
-  }, [summary?.running, loadSummary, params, data]);
+  }, [summary?.running, loadSummary, loadMeta, params, data, entityId]);
 
   useEffect(() => {
     const t = setTimeout(() => setFilters((f) => (f.q === search ? f : { ...f, q: search })), 400);
@@ -394,7 +514,7 @@ export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
     setError('');
     setNotice('');
     try {
-      await api.pulseRefresh();
+      await api.pulseRefresh(entityId);
       setNotice('Collecting from news, X, LinkedIn and the web. This takes 3–5 minutes; the dashboard updates itself.');
       setSummary((s) => (s ? { ...s, running: true } : s));
     } catch (e) {
@@ -406,7 +526,7 @@ export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
     setGenerating(true);
     setError('');
     try {
-      const r = await api.pulseGenerateBrief(days);
+      const r = await api.pulseGenerateBrief(days, entityId);
       setBrief(r.brief);
     } catch (e) {
       setError(e.message);
@@ -426,10 +546,10 @@ export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
       <section className="panel pulse-head">
         <div className="pulse-section-head">
           <div>
-            <h2>Market Pulse</h2>
+            <h2>Market Pulse{meta?.entity && meta.entity.kind !== 'xdc' ? ` · ${entityName}` : ''}</h2>
             <p className="muted">
-              What people are saying about XDC across news, X, LinkedIn and the web, tagged by AI by topic, region,
-              industry and sentiment.
+              What people are saying about {entityName} across news, X, LinkedIn and the web, tagged by AI by topic,
+              region, industry and sentiment.
             </p>
           </div>
           <div className="pulse-head-actions">
@@ -448,6 +568,23 @@ export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
             )}
           </div>
         </div>
+
+        <EntityBar
+          entities={meta?.entities || []}
+          activeId={entityId}
+          canManage={canManage}
+          prefill={trackPrefill}
+          onSwitch={switchEntity}
+          onAdded={(entity) => {
+            switchEntity(entity.id);
+            setNotice(`Now tracking ${entity.name}. Collecting the first mentions; this takes 3–5 minutes and the dashboard updates itself.`);
+          }}
+          onRemoved={(entity) => {
+            if (String(entity.id) === entityId) switchEntity(1);
+            else loadMeta();
+            setNotice(`Stopped tracking ${entity.name}.`);
+          }}
+        />
 
         <div className="pulse-filters">
           <div className="pulse-periods" role="group" aria-label="Period">
@@ -533,7 +670,15 @@ export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
 
           <BriefCard brief={brief} canGenerate={canManage} generating={generating} onGenerate={generate} />
 
-          <CompanyReport data={data} canRun={canManage} />
+          <CompanyReport
+            data={data}
+            canRun={canManage}
+            tracked={meta?.entities || []}
+            onTrack={(prefill) => {
+              setTrackPrefill({ ...prefill });
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
 
           <section className="pulse-grid">
             <div className="panel pulse-wide">
@@ -657,8 +802,8 @@ export default function PulsePanel({ isSuperAdmin = false, shareToken = '' }) {
 
           <p className="muted small pulse-footnote">
             X, LinkedIn and web posts come from public search-engine results, so they show notable posts rather than
-            every post. News comes from the GDELT global news index; price from CoinGecko. Regions are only set when a
-            post states or clearly implies a location.
+            every post. News comes from the GDELT global news index{summary.market?.length ? '; price from CoinGecko' : ''}.
+            Regions are only set when a post states or clearly implies a location.
           </p>
         </>
       ) : null}
