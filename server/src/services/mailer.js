@@ -163,13 +163,15 @@ function guessContentType(filename = '') {
   return 'application/octet-stream';
 }
 
-async function sendViaPostmark({ from, to, subject, html, text, attachments, messageStream }) {
+async function sendViaPostmark({ from, to, cc, replyTo, subject, html, text, attachments, messageStream }) {
   const token = process.env.POSTMARK_SERVER_TOKEN;
   if (!token) throw new Error('POSTMARK_SERVER_TOKEN not set');
 
   const payload = {
     From: from,
     To: to,
+    Cc: cc || undefined,
+    ReplyTo: replyTo || undefined,
     Subject: subject,
     HtmlBody: html,
     TextBody: text || undefined,
@@ -182,8 +184,8 @@ async function sendViaPostmark({ from, to, subject, html, text, attachments, mes
   if (attachments && attachments.length) {
     payload.Attachments = attachments.map((a) => ({
       Name: a.filename,
-      Content: fs.readFileSync(a.path).toString('base64'),
-      ContentType: guessContentType(a.filename),
+      Content: (a.content ? Buffer.from(a.content) : fs.readFileSync(a.path)).toString('base64'),
+      ContentType: a.contentType || guessContentType(a.filename),
       ContentID: a.cid ? `cid:${a.cid}` : undefined,
     }));
   }
@@ -498,6 +500,8 @@ async function sendMailWithFallback(mailOptions) {
     return sendViaPostmark({
       from: mailOptions.from,
       to: mailOptions.to,
+      cc: mailOptions.cc,
+      replyTo: mailOptions.replyTo,
       subject: mailOptions.subject,
       html: mailOptions.html,
       text: mailOptions.text,
@@ -587,7 +591,17 @@ function resolveLogoAttachments() {
     .filter(Boolean);
 }
 
-async function sendOneEmail({ to, subject, html, text, includeLogos = true, fromName }) {
+async function sendOneEmail({
+  to,
+  cc,
+  replyTo,
+  subject,
+  html,
+  text,
+  includeLogos = true,
+  fromName,
+  attachments = [],
+}) {
   const fromAddr = process.env.SMTP_FROM || process.env.OTP_EMAIL_FROM || process.env.SMTP_USER;
   const name = fromName || 'XDC Network & Contour';
   const from = `"${name}" <${fromAddr}>`;
@@ -595,10 +609,12 @@ async function sendOneEmail({ to, subject, html, text, includeLogos = true, from
   const info = await sendMailWithFallback({
     from,
     to,
+    cc: cc || undefined,
+    replyTo: replyTo || undefined,
     subject,
     html: includeLogos ? prepareOutboundHtml(html, { embedLogoCid: true }) : html,
     text: text || undefined,
-    attachments: includeLogos ? resolveLogoAttachments() : [],
+    attachments: [...(includeLogos ? resolveLogoAttachments() : []), ...attachments],
   });
 
   return {

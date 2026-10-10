@@ -33,10 +33,12 @@ app.use('/events', express.static(path.join(__dirname, '../../public/events')));
 app.use('/api/auth', auth);
 // Must be mounted before `api`, whose router-level requireAuth would reject public form calls.
 app.use('/api/public/pulse', require('./routes/publicPulse'));
+app.use('/api/public/sponsor', require('./routes/publicSponsor'));
 app.use('/api/public', require('./routes/publicLeads'));
 app.use('/api/leads', require('./routes/leads'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/pulse', require('./routes/pulse'));
+app.use('/api/hosting', require('./routes/hosting'));
 app.use('/api', api);
 
 app.get('/', (_req, res) => {
@@ -73,6 +75,7 @@ async function start() {
 
   try {
     await ensureSchema();
+    await require('./services/hosting').ensureHostingSchema();
   } catch (err) {
     console.error('Schema init failed:', err.message);
     process.exit(1);

@@ -170,7 +170,104 @@ export const api = {
   leadSettings: (eventId) => request(`/leads/settings${eventId ? `?eventId=${eventId}` : ''}`),
   saveLeadSettings: (notifyEmails) =>
     request('/leads/settings', { method: 'PUT', body: JSON.stringify({ notifyEmails }) }),
+
+  hostEvents: () => request('/hosting/events'),
+  hostEvent: (id) => request(`/hosting/events/${id}`),
+  hostCreateEvent: (body) => request('/hosting/events', { method: 'POST', body: JSON.stringify(body) }),
+  hostUpdateEvent: (id, body) =>
+    request(`/hosting/events/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  hostDeleteEvent: (id) => request(`/hosting/events/${id}`, { method: 'DELETE' }),
+  hostUploadProspectus: (id, file) =>
+    request(`/hosting/events/${id}/prospectus`, { method: 'POST', body: JSON.stringify({ file }) }),
+  hostRemoveProspectus: (id) => request(`/hosting/events/${id}/prospectus`, { method: 'DELETE' }),
+  hostCreatePackage: (eventId, body) =>
+    request(`/hosting/events/${eventId}/packages`, { method: 'POST', body: JSON.stringify(body) }),
+  hostUpdatePackage: (id, body) =>
+    request(`/hosting/packages/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  hostDeletePackage: (id) => request(`/hosting/packages/${id}`, { method: 'DELETE' }),
+  hostAddSponsors: (eventId, sponsors) =>
+    request(`/hosting/events/${eventId}/sponsors`, { method: 'POST', body: JSON.stringify({ sponsors }) }),
+  hostSponsor: (id) => request(`/hosting/sponsors/${id}`),
+  hostUpdateSponsor: (id, body) =>
+    request(`/hosting/sponsors/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  hostDeleteSponsor: (id) => request(`/hosting/sponsors/${id}`, { method: 'DELETE' }),
+  hostSponsorNote: (id, body) =>
+    request(`/hosting/sponsors/${id}/notes`, { method: 'POST', body: JSON.stringify({ body }) }),
+  hostResetPortal: (id) => request(`/hosting/sponsors/${id}/portal/reset`, { method: 'POST' }),
+  hostInvitePreview: (eventId, body) =>
+    request(`/hosting/events/${eventId}/invite/preview`, { method: 'POST', body: JSON.stringify(body) }),
+  hostSendInvites: (eventId, body) =>
+    request(`/hosting/events/${eventId}/invite`, { method: 'POST', body: JSON.stringify(body) }),
+  hostAddDeliverable: (sponsorId, body) =>
+    request(`/hosting/sponsors/${sponsorId}/deliverables`, { method: 'POST', body: JSON.stringify(body) }),
+  hostUpdateDeliverable: (id, body) =>
+    request(`/hosting/deliverables/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  hostDeleteDeliverable: (id) => request(`/hosting/deliverables/${id}`, { method: 'DELETE' }),
+  hostCreateInvoice: (sponsorId, body) =>
+    request(`/hosting/sponsors/${sponsorId}/invoices`, { method: 'POST', body: JSON.stringify(body) }),
+  hostUpdateInvoice: (id, body) =>
+    request(`/hosting/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  hostSendInvoice: (id, body = {}) =>
+    request(`/hosting/invoices/${id}/send`, { method: 'POST', body: JSON.stringify(body) }),
+  hostDeleteInvoice: (id) => request(`/hosting/invoices/${id}`, { method: 'DELETE' }),
+  /** Files need the auth header, so fetch as a blob and open it from an object URL. */
+  hostOpenFile: async (id) => {
+    const win = window.open('', '_blank');
+    const res = await fetch(`${API}/hosting/files/${id}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (!res.ok) {
+      win?.close();
+      throw new Error(`Could not open file (${res.status})`);
+    }
+    const href = URL.createObjectURL(await res.blob());
+    if (win) win.location.href = href;
+    else window.location.href = href;
+  },
+
+  sponsorPage: (token) => request(`/public/sponsor/${encodeURIComponent(token)}`),
+  sponsorInterest: (token, body) =>
+    request(`/public/sponsor/${encodeURIComponent(token)}/interest`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  sponsorReportPaid: (token, invoiceId, reference) =>
+    request(`/public/sponsor/${encodeURIComponent(token)}/invoices/${invoiceId}/paid`, {
+      method: 'POST',
+      body: JSON.stringify({ reference }),
+    }),
+  sponsorUpdateDeliverable: (token, id, body) =>
+    request(`/public/sponsor/${encodeURIComponent(token)}/deliverables/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
 };
+
+export function sponsorFileUrl(token, fileId, download = false) {
+  return `${API}/public/sponsor/${encodeURIComponent(token)}/files/${fileId}${download ? '?download=1' : ''}`;
+}
+
+export function getSponsorTokenFromUrl() {
+  const m = /^\/sponsor\/([A-Za-z0-9_-]{16,64})\/?$/.exec(window.location.pathname);
+  return m ? m[1] : '';
+}
+
+/** Read a picked file as { filename, mime, data(base64) } for JSON upload. */
+export function readUpload(file, maxBytes = 7 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve(null);
+    if (file.size > maxBytes) return reject(new Error('Files must be 7 MB or smaller.'));
+    const reader = new FileReader();
+    reader.onload = () =>
+      resolve({
+        filename: file.name,
+        mime: file.type || 'application/pdf',
+        data: String(reader.result).replace(/^data:[^;]*;base64,/, ''),
+      });
+    reader.onerror = () => reject(new Error('Could not read the file.'));
+    reader.readAsDataURL(file);
+  });
+}
 
 /** Read-only data source for the Market Pulse dashboard: signed-in admin API or a public share link. */
 export function pulseDataSource(shareToken) {
